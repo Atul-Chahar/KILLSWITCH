@@ -63,6 +63,29 @@ python scripts/lookup.py <the demo key id> --wait 900
 CloudTrail Event History is not instant. `--wait` polls instead of reporting,
 wrongly, that the key did nothing.
 
+## Phase 2 — detection
+
+```bash
+make lambda-package                              # builds build/lambda, required before synth
+GITHUB_WEBHOOK_SECRET=<your webhook secret> \
+GITHUB_APP_TOKEN=<a token that can read the private repo> \
+npx aws-cdk@2 deploy KillswitchDetection
+```
+
+Take `WebhookUrl` from the stack output and add it to the private demo repository as a
+push webhook, with the same secret. If the secret is not set, every delivery is rejected
+with a 401 — the system fails closed rather than trusting unsigned requests.
+
+The second trigger cannot be fired by AWS for this demo: AWS only quarantines keys it
+finds in public exposure, and the demo repository is private on purpose. Fire it
+yourself:
+
+```bash
+python scripts/simulate_quarantine.py --region $AWS_REGION
+```
+
+Both triggers should leave exactly one row in the incident table.
+
 ## After every recording
 
 ```bash

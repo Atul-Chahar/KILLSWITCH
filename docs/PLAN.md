@@ -34,11 +34,17 @@ Build the thing we are defending against first. Everything downstream needs real
 
 ## Phase 2 — Detection (2 h, Thu 17 evening)
 
-- [ ] Lambda `detect`: receives a GitHub push webhook, scans the diff for AWS key patterns, verifies the signature header
-- [ ] EventBridge rule for the AWS quarantine policy attachment event as the second trigger
-- [ ] Both triggers write the same incident record to DynamoDB, idempotent on access key id
-- [ ] Unit tests: real key pattern found, AWS's documented example key `AKIAIOSFODNN7EXAMPLE` ignored, no duplicate incident on repeat delivery
-- **Proof:** pytest green, a push to the private demo repo creates exactly one incident row
+- [x] Lambda `detect`: receives a GitHub push webhook, scans the diff for AWS key patterns, verifies the signature header
+- [x] EventBridge rule for the AWS quarantine policy attachment event as the second trigger
+- [x] Both triggers write the same incident record to DynamoDB, idempotent on access key id
+- [x] Unit tests: real key pattern found, AWS's documented example key `AKIAIOSFODNN7EXAMPLE` ignored, no duplicate incident on repeat delivery
+- [x] Added beyond the plan: `investigate/identify.py`, because a quarantine event names a user
+  and never a key, and `scripts/simulate_quarantine.py`, because AWS's real quarantine only reacts
+  to public exposure and our demo repository is private
+- **Proof so far:** 99 tests pass (36 written before the code, RED verified in `d91659f`); both
+  stacks synthesize; the quarantine function's IAM grants are asserted to be read-only
+- **Still unproven:** nothing has been deployed. A real push creating exactly one incident row
+  needs the demo account.
 - **Commit:** `feat: two triggers, one idempotent incident record`
 
 ## Phase 3 — Blast radius (2 h, Fri 18)
