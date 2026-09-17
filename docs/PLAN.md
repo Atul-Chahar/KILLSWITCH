@@ -160,7 +160,16 @@ This screen is the Best UI entry. Treat it as a product, not a form.
 - [x] `docs/AI-TOOLS.md`, `docs/CREDITS.md` final
 - [ ] Record the 3-minute video per `docs/DEMO.md` — **operator**
 - [ ] Publish the blog and the live URL — **operator**
-- [ ] `/code-review` and `security-reviewer` pass, then freeze
+- [x] Security review pass. No exploitable vulnerability introduced; the local filesystem
+      path in `evidence/test-output.txt` was redacted, and the narrator's wildcard Bedrock
+      resource is documented as README limitation 13 rather than silently left
+- [x] Two real bugs found while reviewing, both fixed with tests:
+      `ResponseStack` deployed happily without `BEDROCK_MODEL_ID` into a workflow certain to
+      fail at Narrate, and `make lambda-package` had been building a **macOS** asset since
+      phase 0 — `_pydantic_core.cpython-312-darwin.so` would have failed to import on Lambda
+      on the first deploy. The asset is now pinned to `x86_64-manylinux2014` and the target
+      refuses to finish if a host-native binary is in it
+- [ ] `/code-review` pass, then freeze
 - [ ] Submit — **operator**
 - **Commit:** `docs: judge-facing README, evidence and limitations`
 

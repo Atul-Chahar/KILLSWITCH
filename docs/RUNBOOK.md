@@ -67,6 +67,11 @@ wrongly, that the key did nothing.
 
 ## Phase 2 — detection
 
+`make lambda-package` builds the asset for **x86_64 Linux**, not for your laptop. Without
+that pin, building on macOS puts `_pydantic_core.cpython-312-darwin.so` in the bundle, which
+imports fine locally and fails on Lambda. The target refuses to finish if it finds a
+host-native binary, so you will hear about it at build time rather than at 2am.
+
 ```bash
 make lambda-package                              # builds build/lambda, required before synth
 GITHUB_WEBHOOK_SECRET=<your webhook secret> \

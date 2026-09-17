@@ -1,5 +1,10 @@
-# What goes inside the Lambda asset.
-# boto3 and botocore are deliberately absent: the Python 3.12 Lambda runtime
-# already provides them, and bundling them again bloats every deploy.
+# What goes inside the Lambda asset, built by `make lambda-package`.
+#
+# boto3 and botocore end up in here anyway, as transitive dependencies of
+# strands-agents, and they are left in deliberately. The Python 3.12 Lambda runtime
+# ships its own, but bundling guarantees strands gets the botocore version it was
+# resolved against rather than whatever the runtime happens to carry, and we have no
+# way to test the runtime's version before the demo. 71 MB unzipped, well under the
+# 250 MB limit.
 pydantic>=2.7
 strands-agents>=1.56,<2
