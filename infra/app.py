@@ -10,6 +10,7 @@ import aws_cdk as cdk
 
 from infra.stacks.demo_target import DemoTargetStack
 from infra.stacks.detection import DetectionStack
+from infra.stacks.response import ResponseStack
 
 PRIMARY_REGION = os.environ.get("AWS_REGION", "ap-south-1")
 SECONDARY_REGION = os.environ.get("AWS_SECONDARY_REGION", "us-east-1")
@@ -30,12 +31,21 @@ DemoTargetStack(
     env=env,
 )
 
-DetectionStack(
+detection = DetectionStack(
     app,
     "KillswitchDetection",
     lambda_code_path=str(LAMBDA_CODE_PATH),
     github_webhook_secret=os.environ.get("GITHUB_WEBHOOK_SECRET", ""),
     github_app_token=os.environ.get("GITHUB_APP_TOKEN", ""),
+    env=env,
+)
+
+ResponseStack(
+    app,
+    "KillswitchResponse",
+    lambda_code_path=str(LAMBDA_CODE_PATH),
+    incidents_table=detection.incidents,
+    demo_regions=[PRIMARY_REGION, SECONDARY_REGION],
     env=env,
 )
 
