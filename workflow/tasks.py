@@ -200,9 +200,10 @@ def contain_task(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
 def confirm_task(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
     """Re-read AWS and record the end state we can actually observe."""
     store = _store()
-    incident = store.get(str(event["incident_id"]))
+    incident_id = str(event["incident_id"])
+    incident = store.get(incident_id)
     if incident is None:
-        raise RuntimeError(f"no incident {event['incident_id']}")
+        raise RuntimeError(f"no incident {incident_id}")
 
     verification = VerificationResult.model_validate(event["verification"])
     end_state = confirm_end_state(
@@ -212,6 +213,12 @@ def confirm_task(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
         ec2_clients=_ec2_clients(_demo_regions()),
     )
     status = IncidentStatus.CONTAINED if end_state.all_confirmed else IncidentStatus.FAILED
+    # The console reads DynamoDB, never the execution state, so how this ended has to be
+    # written down. An end state nobody can see is the same as no end state.
+    store.save_artifacts(
+        incident_id,
+        {"end_state": end_state.model_dump(mode="json"), "status": status.value},
+    )
     return {
         **event,
         "end_state": end_state.model_dump(mode="json"),
