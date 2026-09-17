@@ -61,6 +61,30 @@ class IncidentStore:
             ExpressionAttributeValues={":token": approval_token, ":status": "awaiting_approval"},
         )
 
+    def save_artifacts(self, incident_id: str, artifacts: dict[str, Any]) -> None:
+        """Persist what the console has to render: the evidence, the plan and the tiers.
+
+        These live in the workflow's execution state, which the console cannot read, so
+        they are written to the incident before the execution pauses for approval.
+        """
+        if not artifacts:
+            return
+        names = {f"#{key}": key for key in artifacts}
+        values = {f":{key}": value for key, value in artifacts.items()}
+        assignments = ", ".join(f"#{key} = :{key}" for key in artifacts)
+        self._table.update_item(
+            Key={"incident_id": incident_id, "sk": INCIDENT_SORT_KEY},
+            UpdateExpression=f"SET {assignments}",
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+        )
+
+    def raw_incident(self, incident_id: str) -> dict[str, Any] | None:
+        """The stored item as-is, including artifacts the typed record does not model."""
+        response = self._table.get_item(Key={"incident_id": incident_id, "sk": INCIDENT_SORT_KEY})
+        item = response.get("Item")
+        return dict(item) if item else None
+
     def record_decision(self, decision: ApprovalRecord) -> None:
         self._table.put_item(Item=decision.to_item())
 

@@ -20,3 +20,5 @@ out/
 *.db
 evidence/raw/
 .DS_Store
+console/dist/
+console/node_modules/

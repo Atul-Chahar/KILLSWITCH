@@ -8,6 +8,7 @@ from pathlib import Path
 
 import aws_cdk as cdk
 
+from infra.stacks.console_api import ConsoleApiStack
 from infra.stacks.demo_target import DemoTargetStack
 from infra.stacks.detection import DetectionStack
 from infra.stacks.response import ResponseStack
@@ -40,12 +41,21 @@ detection = DetectionStack(
     env=env,
 )
 
-ResponseStack(
+response = ResponseStack(
     app,
     "KillswitchResponse",
     lambda_code_path=str(LAMBDA_CODE_PATH),
     incidents_table=detection.incidents,
     demo_regions=[PRIMARY_REGION, SECONDARY_REGION],
+    env=env,
+)
+
+ConsoleApiStack(
+    app,
+    "KillswitchConsoleApi",
+    lambda_code_path=str(LAMBDA_CODE_PATH),
+    incidents_table=detection.incidents,
+    state_machine=response.state_machine,
     env=env,
 )
 

@@ -110,10 +110,23 @@ def authorize_task(event: dict[str, Any], _context: Any = None) -> dict[str, Any
 
 
 def request_approval_task(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
-    """Store the task token so the console can answer, and so containment can check it."""
+    """Store the task token so the console can answer, and so containment can check it.
+
+    The evidence, the plan and the tiers are written to the incident here as well: they
+    live in the execution state, which the console cannot read.
+    """
+    store = _store()
+    incident_id = str(event["incident_id"])
     token = str(event["task_token"])
-    _store().set_approval_token(str(event["incident_id"]), token)
-    return {"incident_id": event["incident_id"], "approval_token": token}
+
+    artifacts = {
+        field: event[field]
+        for field in ("blast_radius", "verification", "tiers", "summary")
+        if event.get(field) is not None
+    }
+    store.save_artifacts(incident_id, artifacts)
+    store.set_approval_token(incident_id, token)
+    return {"incident_id": incident_id, "approval_token": token}
 
 
 def contain_task(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:

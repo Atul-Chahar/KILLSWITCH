@@ -190,6 +190,9 @@ class ResponseStack(Stack):
                     payload=sfn.TaskInput.from_object(
                         {
                             "incident_id": sfn.JsonPath.string_at("$.incident_id"),
+                            "blast_radius": sfn.JsonPath.object_at("$.blast_radius"),
+                            "verification": sfn.JsonPath.object_at("$.verification"),
+                            "tiers": sfn.JsonPath.object_at("$.tiers"),
                             "task_token": sfn.JsonPath.task_token,
                         }
                     ),

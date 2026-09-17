@@ -86,6 +86,30 @@ python scripts/simulate_quarantine.py --region $AWS_REGION
 
 Both triggers should leave exactly one row in the incident table.
 
+## Phase 5 and 6 — the workflow and the console
+
+```bash
+make lambda-package
+npx aws-cdk@2 deploy KillswitchResponse KillswitchConsoleApi
+```
+
+Create yourself an operator. The pool does not allow self sign-up:
+
+```bash
+aws cognito-idp admin-create-user --user-pool-id <UserPoolId output> \
+  --username you@example.com --user-attributes Name=email,Value=you@example.com
+```
+
+Run the console against the deployed API:
+
+```bash
+cd console && npm install
+VITE_API_BASE=<ConsoleApiUrl output> npm run build   # then deploy console/dist to Amplify Hosting
+```
+
+With no `VITE_API_BASE` the console runs in fixture mode against a bundled example
+incident, and says so on screen. That is the safe way to rehearse the screen.
+
 ## After every recording
 
 ```bash

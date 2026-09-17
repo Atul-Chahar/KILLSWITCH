@@ -83,24 +83,39 @@ Use the ECC `tdd-workflow` skill here. Write the failing test first.
 
 ## Phase 5 — Approval and containment (3 h, Fri 18)
 
-- [ ] Step Functions state machine wiring phases 2 to 7
-- [ ] Approval step uses `waitForTaskToken`; token stored on the incident record
-- [ ] Amazon Verified Permissions policy: reads auto, tagging auto, destructive requires human
-- [ ] `containment/`: deactivate key, terminate instances, open GitHub PR removing the secret. Each function refuses to run without a valid approval token
-- [ ] Post-action verification: key status is `Inactive`, instances are `shutting-down` or `terminated`, PR url recorded
-- [ ] Audit rows written for every decision, including rejections and denials
-- **Proof:** full run in the demo account, with one action denied by the human and correctly left alone
+- [x] Step Functions state machine wiring phases 2 to 7
+- [x] Approval step uses `waitForTaskToken`; token stored on the incident record
+- [x] Amazon Verified Permissions policy: reads auto, tagging auto, destructive requires human,
+      with a strict fallback table when the policy store cannot answer
+- [x] `containment/`: deactivate key, terminate instances, open GitHub PR removing the secret. Each function refuses to run without a valid approval token
+- [x] Post-action verification: key status is `Inactive`, instances are `shutting-down` or `terminated`, PR url recorded
+- [x] Audit rows written for every decision, including rejections and denials
+- [ ] The GitHub PR opener itself is **not built**. `containment/open_pull_request` works and is
+      tested, but the function that actually opens the PR raises `NotImplementedError` rather than
+      returning a url nobody opened. This is cut-list item 2 if time runs out.
+- **Proof so far:** 191 tests. The synthesized template is asserted to grant
+  `ec2:TerminateInstances` and `iam:UpdateAccessKey` in exactly one statement, the containment
+  function's, so the safety boundary is checkable by CI rather than by reading the code.
+- **Still unproven:** the whole of it against AWS. No state machine has executed, no policy store
+  exists, and the `waitForTaskToken` round trip has never run.
 - **Commit:** `feat: human-gated containment with post-action verification`
 
 ## Phase 6 — The console (3 h, Sat 19, in person)
 
 This screen is the Best UI entry. Treat it as a product, not a form.
 
-- [ ] React + Vite + TypeScript, Cognito login, Amplify Hosting
-- [ ] Incident view: timeline (leak, first attacker call, instances launched, detection), blast radius table, proposed plan with verifier decisions visible, approve or deny per action
-- [ ] Live status after approval, money-saved estimate, audit trail
-- [ ] Works on a phone, since the video shows approval from a phone
-- **Proof:** live URL, fresh browser session, full flow
+- [x] React + Vite + TypeScript, Cognito login on every API route, built for Amplify Hosting
+- [x] Incident view: timeline (leak, first attacker call, instances launched, detection), blast radius table, proposed plan with verifier decisions visible, approve or deny per action
+- [x] Live status after approval, money-saved estimate, audit trail
+- [x] Works on a phone: single column under 860px, 40px touch targets, safe-area padding
+- [x] Two mitigations `docs/VERIFIER-LIMITS.md` called for: resources the plan ignored are
+      highlighted in the blast radius table, and model prose is rendered in a marked
+      "written by the model, not evidence" block
+- [x] Fixture mode, so the screen can be rehearsed without an AWS account, with a banner
+      saying so on screen rather than passing fixtures off as live data
+- **Proof:** `make check` type-checks, tests and builds it. 50 KB gzipped, no component library.
+- **Still unproven:** there is no live URL. Nothing is deployed, Cognito has no users, and the
+  approve button has never released a real task token.
 - **Commit:** `feat: operator console for approval and audit`
 
 ## Phase 7 — The narrator agent (2 h, Sat 19)

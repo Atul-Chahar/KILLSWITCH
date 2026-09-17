@@ -3,7 +3,7 @@ BIN := $(VENV)/bin
 LAMBDA_BUILD := build/lambda
 LAMBDA_MODULES := detect investigate narrate verifier authorize containment shared workflow
 
-.PHONY: install test lint typecheck secrets check fmt lambda-package clean
+.PHONY: install test lint typecheck secrets check fmt lambda-package console-install console-check clean
 
 install:
 	uv venv --python 3.12 $(VENV)
@@ -26,7 +26,19 @@ fmt:
 	$(BIN)/ruff format .
 	$(BIN)/ruff check --fix .
 
-check: secrets lint typecheck test
+console-install:
+	cd console && npm install
+
+# Type-checks, unit-tests and builds the console. Skipped with a warning when the
+# dependencies are not installed, so `make check` still runs on a fresh clone.
+console-check:
+	@if [ -d console/node_modules ]; then \
+		cd console && npm run test && npm run build; \
+	else \
+		echo "console/node_modules missing, skipping (run: make console-install)"; \
+	fi
+
+check: secrets lint typecheck test console-check
 
 # The Lambda asset CDK uploads: our modules plus the dependencies the Lambda
 # runtime does not already carry. boto3 is provided by the runtime; pydantic is not.
