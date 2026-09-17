@@ -35,7 +35,7 @@ tests/test_verifier.py .......................                           [100%]
 > vitest run
 
 
- RUN  v2.1.9 /Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/console
+ RUN  v2.1.9 <repo>/console
 
  ✓ src/cost.test.ts (7 tests) 15ms
 

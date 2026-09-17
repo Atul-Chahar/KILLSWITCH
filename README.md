@@ -193,6 +193,12 @@ Specifically:
     retry path.
 12. **It has only ever been tested at demo scale**, which is two instances. Nothing here
     reasons about a key that launched two hundred.
+13. **The narrator's `bedrock:InvokeModel` grant is on `Resource: "*"`.** The action is the
+    narrowest one Bedrock has and cannot read, write or destroy anything, but the narrator
+    Lambda could invoke any model in the account, not only the one `BEDROCK_MODEL_ID` names.
+    Scoping it means building foundation-model and inference-profile ARNs, and cross-region
+    inference profiles make that easy to get wrong, so it was left wide on purpose. The
+    exposure is spend, not access.
 
 ## Credits and AI tools
 
