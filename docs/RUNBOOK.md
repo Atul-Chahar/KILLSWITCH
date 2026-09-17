@@ -18,6 +18,8 @@ Set in `.env` (and export before running AWS commands):
 | `DEMO_ACCOUNT_ID` | The dedicated throwaway account. Every script refuses to run anywhere else |
 | `AWS_REGION` | Primary demo region (`ap-south-1`) |
 | `AWS_SECONDARY_REGION` | Second demo region, so the attack spans two |
+| `BEDROCK_MODEL_ID` | The Bedrock model the narrator asks. Required; unset fails the step |
+| `NARRATOR_MODE` | Empty or `bedrock` asks the model. `rehearsal` uses the fixed plan |
 
 Also do these by hand, once:
 
@@ -90,8 +92,19 @@ Both triggers should leave exactly one row in the incident table.
 
 ```bash
 make lambda-package
+BEDROCK_MODEL_ID=<the model id you enabled> \
 npx aws-cdk@2 deploy KillswitchResponse KillswitchConsoleApi
 ```
+
+Enable that model in Bedrock first, in `$AWS_REGION`, under Model access. The narrator
+Lambda is granted `bedrock:InvokeModel` on `*` and nothing else, so an un-enabled model
+fails the Narrate step with an access error rather than falling back to another model.
+
+To rehearse without Bedrock, redeploy with `NARRATOR_MODE=rehearsal`. That narrator writes
+a fixed plan which always includes one instance the leaked key never created, so the
+verifier strikes it out on camera every time. The console labels that prose
+"Rehearsal narrator, not a model and not evidence", so it can never be shown as a model's
+work.
 
 Create yourself an operator. The pool does not allow self sign-up:
 

@@ -63,6 +63,8 @@ class ResponseStack(Stack):
         lambda_code_path: str,
         incidents_table: dynamodb.ITable,
         demo_regions: list[str],
+        bedrock_model_id: str = "",
+        narrator_mode: str = "",
         **kwargs: object,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -92,6 +94,10 @@ class ResponseStack(Stack):
             "INCIDENT_TABLE_NAME": incidents_table.table_name,
             "AWS_SECONDARY_REGION": demo_regions[-1],
             "VERIFIED_PERMISSIONS_POLICY_STORE_ID": policy_store.attr_policy_store_id,
+            # Empty is a deploy-time mistake, not a default. narrate/agent.py raises on it
+            # rather than quietly asking whichever model the SDK happens to prefer.
+            "BEDROCK_MODEL_ID": bedrock_model_id,
+            "NARRATOR_MODE": narrator_mode,
         }
 
         def task_function(name: str, handler: str) -> lambda_.Function:
@@ -108,6 +114,7 @@ class ResponseStack(Stack):
             return function
 
         investigate = task_function("InvestigateFunction", "workflow.tasks.investigate_task")
+        narrate = task_function("NarrateFunction", "workflow.tasks.narrate_task")
         verify = task_function("VerifyFunction", "workflow.tasks.verify_task")
         authorize = task_function("AuthorizeFunction", "workflow.tasks.authorize_task")
         request_approval = task_function(
@@ -125,6 +132,16 @@ class ResponseStack(Stack):
                     "iam:GetAccessKeyLastUsed",
                     "iam:ListAccessKeys",
                 ],
+                resources=["*"],
+            )
+        )
+        # The narrator's entire power: ask one model one question. Not InvokeModelWith-
+        # ResponseStream, because narrate/agent.py turns streaming off precisely so this
+        # grant can stay a single action.
+        narrate.add_to_role_policy(
+            iam.PolicyStatement(
+                sid="AskTheModelToPropose",
+                actions=["bedrock:InvokeModel"],
                 resources=["*"],
             )
         )
@@ -172,6 +189,11 @@ class ResponseStack(Stack):
             )
             .next(
                 tasks.LambdaInvoke(
+                    self, "Narrate", lambda_function=narrate, payload_response_only=True
+                )
+            )
+            .next(
+                tasks.LambdaInvoke(
                     self, "Verify", lambda_function=verify, payload_response_only=True
                 )
             )
@@ -193,6 +215,10 @@ class ResponseStack(Stack):
                             "blast_radius": sfn.JsonPath.object_at("$.blast_radius"),
                             "verification": sfn.JsonPath.object_at("$.verification"),
                             "tiers": sfn.JsonPath.object_at("$.tiers"),
+                            # The console reads DynamoDB, not the execution state, so the
+                            # narrator's prose and its author travel with the token.
+                            "summary": sfn.JsonPath.string_at("$.summary"),
+                            "narrator": sfn.JsonPath.string_at("$.narrator"),
                             "task_token": sfn.JsonPath.task_token,
                         }
                     ),

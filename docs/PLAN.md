@@ -120,10 +120,28 @@ This screen is the Best UI entry. Treat it as a product, not a form.
 
 ## Phase 7 — The narrator agent (2 h, Sat 19)
 
-- [ ] Strands agent on Bedrock: takes the blast radius, writes the incident summary and a proposed plan as strict JSON
-- [ ] Schema validation on the output; invalid output fails the step rather than being patched up
-- [ ] The plan always passes through the verifier before any human sees an approve button
-- **Proof:** a run where the model proposes an unowned resource and the verifier strikes it, visible in the console
+- [x] Strands agent on Bedrock: takes the blast radius, writes the incident summary and a proposed plan as strict JSON
+- [x] Schema validation on the output; invalid output fails the step rather than being patched up
+- [x] The plan always passes through the verifier before any human sees an approve button
+- [x] The agent is built with no tools at all, so it has nothing to act with
+- [x] Wired into the state machine as `Narrate`, between `Investigate` and `Verify`. `Verify`
+      now reads `event["plan"]` as a required key: an absent plan used to read as an empty
+      one, which verifies clean and contains nothing
+- [x] `narrate/rehearsal.py`, a fixed narrator that always proposes one unowned instance,
+      so the verifier's rejection can be filmed without waiting for a model to misbehave.
+      Which narrator ran is stored on the incident and labelled on screen
+- [x] **Decision recorded, not assumed:** Strands implements structured output on Bedrock as
+      a tool call and, by default, hands a pydantic validation failure back to the model as a
+      tool error so it can retry. We switch that off with `limits={"turns": 1}`. The cost is
+      that Strands' second-turn nudge for a model that replied in prose is disabled too, so
+      such a reply fails the step. This was read from the installed strands-agents 1.56.0
+      source, not from its documentation
+- **Proof:** 34 narrator tests plus 6 more on the synthesized template, written and failing
+  first (`c26d040`). The rehearsal plan is run end to end through `narrate_task` into
+  `verify_task` in a test, and the verifier strikes out exactly one action.
+- **Still unproven:** no model has ever been called. Every test uses a stub agent. Whether a
+  real Bedrock model satisfies the schema on its first and only turn is unknown, and the
+  one-turn decision makes that the riskiest untested thing in the project.
 - **Commit:** `feat: model proposes, verifier disposes`
 
 ## Phase 8 — Proof, docs, video (4 h, Sat 19 evening to Sun 20)

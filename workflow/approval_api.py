@@ -18,7 +18,7 @@ import boto3
 from shared.approvals import ApprovalRecord, ApprovalState
 from shared.incidents import IncidentStore
 
-ARTIFACT_FIELDS = ("blast_radius", "verification", "tiers", "summary", "end_state")
+ARTIFACT_FIELDS = ("blast_radius", "verification", "tiers", "summary", "narrator", "end_state")
 
 
 def _store() -> IncidentStore:

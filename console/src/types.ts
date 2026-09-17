@@ -117,6 +117,9 @@ export interface Incident {
   blast_radius: BlastRadius | null;
   // Written by the model. Rendered as untrusted, never as evidence.
   summary: string | null;
+  // Which narrator wrote that summary and the plan. "rehearsal" is a fixed plan we use to
+  // film the verifier rejecting an action, and it must never be shown as a model's work.
+  narrator: "bedrock" | "rehearsal" | null;
   verification: VerificationResult | null;
   tiers: TierDecision[];
   end_state: EndState | null;

@@ -47,6 +47,8 @@ response = ResponseStack(
     lambda_code_path=str(LAMBDA_CODE_PATH),
     incidents_table=detection.incidents,
     demo_regions=[PRIMARY_REGION, SECONDARY_REGION],
+    bedrock_model_id=os.environ.get("BEDROCK_MODEL_ID", ""),
+    narrator_mode=os.environ.get("NARRATOR_MODE", ""),
     env=env,
 )
 

@@ -32,7 +32,11 @@ export function PlanPanel({ incident, decisions, needsHuman, onDecide, disabled 
 
       {incident.summary && (
         <blockquote className="model-prose">
-          <span className="chip untrusted">Written by the model, not evidence</span>
+          <span className="chip untrusted">
+            {incident.narrator === "rehearsal"
+              ? "Rehearsal narrator, not a model and not evidence"
+              : "Written by the model, not evidence"}
+          </span>
           {incident.summary}
         </blockquote>
       )}

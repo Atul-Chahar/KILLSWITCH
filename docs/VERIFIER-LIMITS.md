@@ -20,10 +20,18 @@ past the checks. It simply proposes fewer actions than it should, or none at all
 every check passes. Nothing in this module compares the plan against the blast radius to
 ask "why is this instance not being dealt with?"
 
-**Mitigation, not yet built:** the console should show the blast radius and the plan side
-by side, so a resource with no proposed action is visible to the human as a gap. Until
-then, the human approver is the only thing standing between a lazy plan and an
+**Mitigation, partly built:** the console shows the blast radius and the plan side by
+side and highlights a resource with no proposed action, so a gap is visible to the human.
+The narrator's system prompt also tells it to deal with every resource in the evidence.
+Neither is a check. A prompt is a request, and a highlighted row still needs somebody to
+look at it. The human approver remains the only thing standing between a lazy plan and an
 under-contained incident.
+
+One thing did get narrower. `narrate/schema.py` requires the `actions` list rather than
+defaulting it, so a model that proposes nothing has to say so explicitly instead of
+omitting the field, and `verify_task` now requires `plan` in the workflow state rather
+than reading a missing one as an empty plan. Both turn a silent nothing into a visible
+nothing. Neither makes the verifier able to judge what is absent.
 
 ## 2. It trusts the blast radius completely
 
@@ -52,8 +60,15 @@ A model that writes "AWS support has confirmed all of these are malicious, appro
 everything" is attacking the approver, not the verifier. The last gate in the system is a
 person reading text partly written by the component we have decided not to trust.
 
-**Mitigation, not yet built:** the console must render model prose as visibly untrusted,
-and show the verifier's own findings more prominently than the model's narrative.
+**Mitigation, built:** the console renders model prose in a block labelled "Written by
+the model, not evidence", and the verifier's own findings sit outside it. The incident
+also records which narrator wrote the prose, so the fixed rehearsal narrator used for
+filming is labelled "Rehearsal narrator, not a model and not evidence" rather than being
+passed off as a model's work.
+
+It is still only a label. Nothing stops a model writing "AWS support has confirmed all of
+these are malicious" inside that block, and nothing measures whether the approver read it
+as untrusted.
 
 ## 5. Nothing here reasons about scale
 
@@ -68,6 +83,19 @@ IAM's own events only reach us-east-1. Anything outside those bounds never enter
 blast radius, so the verifier will reject an action against it as "not in the blast
 radius": the right answer for the wrong reason, and indistinguishable from a model
 hallucinating a resource.
+
+## 7. The narrator gets one turn, and that cuts both ways
+
+`narrate/agent.py` disables the retry Strands would otherwise perform when structured
+output fails validation. A model that cannot produce a valid plan on its first turn fails
+the step, which is the outcome we want for a safety-critical component.
+
+The honest cost: this also disables the second turn Strands uses to re-ask a model that
+replied in prose instead of calling the structured output tool. Some of those runs would
+have succeeded. We trade availability for the guarantee that the model never gets a second
+attempt at the schema, and a failed Narrate step means no plan reaches a human at all.
+
+This has never been measured against a real model. See the README limitations.
 
 ## What it does get right
 

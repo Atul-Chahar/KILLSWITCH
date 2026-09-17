@@ -13,14 +13,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
+
+from investigate.blast_radius import BlastRadius, CreatedResource, ResourceKind
 from narrate.agent import MAX_TURNS, build_bedrock_agent, narrate
 from narrate.narrator import NarratorMode, narration_for, narrator_mode
 from narrate.prompt import SYSTEM_PROMPT, evidence_prompt
 from narrate.rehearsal import REHEARSAL_UNOWNED_INSTANCE, rehearsal_narration
 from narrate.schema import NarratedAction, NarratedIncident, NarrationError
-from pydantic import ValidationError
-
-from investigate.blast_radius import BlastRadius, CreatedResource, ResourceKind
 from verifier.plan import ProposedAction
 from verifier.verify import ActionType, RejectionReason, verify_plan
 
@@ -412,3 +412,43 @@ def test_a_bad_narrator_mode_stops_the_workflow_step(monkeypatch):
 
     with pytest.raises(NarrationError):
         tasks.narrate_task({"blast_radius": radius().model_dump(mode="json")})
+
+
+def test_the_verifier_step_refuses_to_run_on_a_state_with_no_plan():
+    """An absent plan used to read as an empty one, which verifies clean and contains nothing."""
+    from workflow import tasks
+
+    with pytest.raises(KeyError):
+        tasks.verify_task(
+            {
+                "incident_id": f"inc-{KEY}",
+                "access_key_id": KEY,
+                "blast_radius": radius(created(LAUNCHED)).model_dump(mode="json"),
+            }
+        )
+
+
+def test_the_plan_the_narrator_emits_is_the_plan_the_verifier_reads(monkeypatch):
+    """The two steps are wired through the state, so a rename in one would break here."""
+    from workflow import tasks
+
+    monkeypatch.setenv("NARRATOR_MODE", NarratorMode.REHEARSAL.value)
+    facts = radius(created(LAUNCHED), created(SECOND_LAUNCHED, "us-east-1"))
+    narrated_state = tasks.narrate_task(
+        {
+            "incident_id": f"inc-{KEY}",
+            "access_key_id": KEY,
+            "repository": REPOSITORY,
+            "key_owner": "demo-leaky-user",
+            "blast_radius": facts.model_dump(mode="json"),
+        }
+    )
+
+    verified_state = tasks.verify_task(narrated_state)
+    verification = verified_state["verification"]
+
+    assert len(verification["approved"]) == 3
+    assert [item["reason"] for item in verification["rejected"]] == [
+        RejectionReason.TARGET_NOT_IN_BLAST_RADIUS
+    ]
+    assert verified_state["summary"] == narrated_state["summary"]

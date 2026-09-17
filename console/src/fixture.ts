@@ -21,6 +21,7 @@ export const FIXTURE_INCIDENT: Incident = {
     "A long-term access key belonging to demo-leaky-user was committed to " +
     "octo/private-demo-repo and used within seconds to launch t3.micro instances in two " +
     "regions. I recommend deactivating the key and terminating both instances.",
+  narrator: "bedrock",
   blast_radius: {
     access_key_id: KEY,
     regions_searched: ["ap-south-1", "us-east-1"],

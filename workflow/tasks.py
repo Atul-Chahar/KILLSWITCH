@@ -18,6 +18,7 @@ from containment.end_state import confirm_end_state
 from containment.guard import NotApproved
 from investigate.blast_radius import BlastRadius, build_blast_radius
 from investigate.identify import IdentificationError, owner_of_access_key
+from narrate.narrator import narration_for, narrator_mode
 from shared.incidents import IncidentStore
 from shared.models import IncidentStatus
 from verifier.plan import ProposedPlan
@@ -76,10 +77,34 @@ def investigate_task(event: dict[str, Any], _context: Any = None) -> dict[str, A
     }
 
 
+def narrate_task(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
+    """Ask the narrator for a summary and a plan. It is the only model call in KILLSWITCH.
+
+    Whatever comes back goes straight to the verifier, which is the next state. Nothing
+    written here is trusted, and the narrator that wrote it is recorded alongside it so
+    the console can say who the prose came from.
+    """
+    radius = BlastRadius.model_validate(event["blast_radius"])
+    mode = narrator_mode(os.environ.get("NARRATOR_MODE"))
+
+    narration = narration_for(
+        radius,
+        mode=mode,
+        repository=event.get("repository"),
+        key_owner=event.get("key_owner"),
+    )
+    return {
+        **event,
+        "plan": narration.to_proposed_plan().model_dump(mode="json"),
+        "summary": narration.summary,
+        "narrator": mode.value,
+    }
+
+
 def verify_task(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
     """Run the model's plan through the verifier. Nothing reaches a human unverified."""
     radius = BlastRadius.model_validate(event["blast_radius"])
-    plan = ProposedPlan.model_validate(event.get("plan") or {})
+    plan = ProposedPlan.model_validate(event["plan"])
 
     result = verify_plan(
         plan,
@@ -121,7 +146,7 @@ def request_approval_task(event: dict[str, Any], _context: Any = None) -> dict[s
 
     artifacts = {
         field: event[field]
-        for field in ("blast_radius", "verification", "tiers", "summary")
+        for field in ("blast_radius", "verification", "tiers", "summary", "narrator")
         if event.get(field) is not None
     }
     store.save_artifacts(incident_id, artifacts)
