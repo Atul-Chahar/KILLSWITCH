@@ -4,7 +4,7 @@ What is in here, and — just as importantly — what is not.
 
 | File | What it is | What it proves |
 |---|---|---|
-| `test-output.txt` | A full `pytest -v` run plus the console's vitest run | 256 Python tests and 7 console tests pass. Every AWS client in them is an in-memory fake and every Strands agent is a stub |
+| `test-output.txt` | A full `pytest -v` run plus the console's vitest run | 260 Python tests and 7 console tests pass. Every AWS client in them is an in-memory fake and every Strands agent is a stub |
 | `state-machine-definition.json` | The Step Functions definition CDK **synthesizes** | The order of states, that the approval step is `lambda:invoke.waitForTaskToken`, and that an unconfirmed end state goes to `Fail`, not `Succeed` |
 | `console-incident-fixture-mode.jpg` | The operator console, running locally against the bundled fixture | The incident view: timeline, blast radius, cost estimate, model prose labelled as untrusted, and the instance with no proposed action highlighted |
 | `console-verifier-rejection-fixture-mode.jpg` | The same screen, scrolled to the plan | The verifier striking out `i-0999999999ffffff9` with "this leaked key never created it", next to the two actions it approved |

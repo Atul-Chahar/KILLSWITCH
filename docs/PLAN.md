@@ -167,7 +167,10 @@ This screen is the Best UI entry. Treat it as a product, not a form.
       primary demo path: a key leaked by a GitHub push could never be deactivated, because
       `investigate_task` resolved the owning IAM user into the execution state and never
       wrote it to the incident, while `contain_task` re-reads the incident. Every existing
-      test seeded `key_owner`, so nothing saw it. The other two:
+      test seeded `key_owner`, so nothing saw it. A second, same-seam bug: `confirm_task`
+      never wrote the end state or the final status to DynamoDB, so the console sat on
+      "awaiting approval" with an empty end-state panel however the incident finished. Both
+      fixed. The other two:
       `ResponseStack` deployed happily without `BEDROCK_MODEL_ID` into a workflow certain to
       fail at Narrate, and `make lambda-package` had been building a **macOS** asset since
       phase 0 — `_pydantic_core.cpython-312-darwin.so` would have failed to import on Lambda
@@ -175,7 +178,9 @@ This screen is the Best UI entry. Treat it as a product, not a form.
       refuses to finish if a host-native binary is in it
 - [x] `tests/test_workflow_end_to_end.py`: the whole chain against in-memory AWS, written
       during the review pass because every other test covered one module and nothing covered
-      the seams. Mutation-checked — deleting the approval guard fails three of its eight
+      the seams. Mutation-checked — deleting the approval guard fails three of its twelve.
+      It paid for itself immediately: extending it to start at `investigate_task` rather than
+      at a seeded incident is what exposed the key-owner bug
 - [ ] `/code-review` pass, then freeze
 - [ ] Submit — **operator**
 - **Commit:** `docs: judge-facing README, evidence and limitations`

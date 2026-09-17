@@ -123,7 +123,7 @@ step in [docs/RUNBOOK.md](docs/RUNBOOK.md).
 ## Tests
 
 ```bash
-make test           # 256 Python tests
+make test           # 260 Python tests
 make check          # the full gate, including the console
 ```
 
@@ -133,7 +133,7 @@ The tests worth looking at:
 - `tests/test_containment.py` — every destructive function refusing to act without a scoped approval token, and recording the refusal.
 - `tests/test_narrate.py` — the narrator's schema, the one-turn decision, and the rehearsal plan running end to end into the verifier, which strikes exactly one action.
 - `tests/test_response_stack.py` — the workflow's shape as a safety property, asserted on the synthesized template.
-- `tests/test_workflow_end_to_end.py` — the whole chain, narrate to confirm, against in-memory AWS. An approved action runs, a denied one leaves its target untouched, and the execution ends unconfirmed because that instance is still running.
+- `tests/test_workflow_end_to_end.py` — the whole chain, investigate to confirm, against in-memory AWS. An approved action runs, a denied one leaves its target untouched, and the incident ends `failed` on the screen because that instance is still running. This file found three seam bugs the module tests could not see.
 
 Saved output and console screenshots are in [evidence/](evidence/).
 
@@ -146,6 +146,12 @@ event has been read, no Bedrock model has been called, no Step Functions executi
 started, and the approve button has never released a real task token. Every test in this
 repository runs against in-memory fakes and stub agents. Read every "it does X" above as
 "the code for X is written and unit-tested".
+
+That matters more than it sounds. The last review pass found three bugs that only exist at
+the seams between modules, and one of them meant a key leaked by a GitHub push could never
+be deactivated at all — the headline action, on the primary path, failing every time. Every
+module test passed throughout. `tests/test_workflow_end_to_end.py` now runs the whole chain
+against fakes, but a chain of fakes is still a chain of fakes.
 
 Specifically:
 
