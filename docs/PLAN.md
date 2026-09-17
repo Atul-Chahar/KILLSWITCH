@@ -49,10 +49,18 @@ Build the thing we are defending against first. Everything downstream needs real
 
 ## Phase 3 — Blast radius (2 h, Fri 18)
 
-- [ ] `investigate/` module: CloudTrail `LookupEvents` by access key id across the demo regions, collecting resource id, event name, region, time, source IP
-- [ ] Output is a typed object, not free text
-- [ ] Unit tests against recorded CloudTrail fixtures (save real responses to `tests/fixtures/`, scrub account ids)
-- **Proof:** given the attack from phase 1, the module returns exactly the instances the attacker launched
+- [x] `investigate/` module: CloudTrail `LookupEvents` by access key id across the demo regions, collecting resource id, event name, region, time, source IP
+- [x] Output is a typed object, not free text — `BlastRadius`, and even the failures are typed
+      (`ProblemKind` enum plus an AWS error code, no prose anywhere in the return value)
+- [x] Unit tests against CloudTrail fixtures, with a tested scrubber (`scripts/capture_fixture.py`)
+- [ ] **The fixtures are synthetic, not recorded.** Nothing here has called AWS. They are written
+      to the exact `LookupEvents` shape and must be replaced with real scrubbed captures after the
+      first demo run — see `tests/fixtures/README.md`
+- **Proof so far:** 112 tests pass. Pagination is followed, a failed region is recorded rather than
+  swallowed, a read-only call creates nothing, and a creation event with no resource id is a
+  recorded gap rather than an empty success.
+- **Still unproven:** that the module returns exactly what the attacker launched. That needs phase 1
+  to have actually run.
 - **Commit:** `feat: blast radius from CloudTrail evidence`
 
 ## Phase 4 — Verifier (2 h, Fri 18) — the most important module

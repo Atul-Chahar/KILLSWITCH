@@ -1,0 +1,21 @@
+{
+  "Events": [
+    {
+      "EventId": "7c4e8b11-aaaa-4bbb-8ccc-000000000003",
+      "EventName": "RunInstances",
+      "ReadOnly": "false",
+      "AccessKeyId": "AKIAIOSFODNN7EXAMPLE",
+      "EventTime": "2026-09-18T10:14:55+00:00",
+      "EventSource": "ec2.amazonaws.com",
+      "Username": "demo-leaky-user",
+      "Resources": [
+        {
+          "ResourceType": "AWS::EC2::Instance",
+          "ResourceName": "i-0f9e8d7c6b5a40002"
+        }
+      ],
+      "CloudTrailEvent": "{\"eventVersion\":\"1.09\",\"userIdentity\":{\"type\":\"IAMUser\",\"arn\":\"arn:aws:iam::000000000000:user/demo-leaky-user\",\"accountId\":\"000000000000\",\"accessKeyId\":\"AKIAIOSFODNN7EXAMPLE\",\"userName\":\"demo-leaky-user\"},\"eventTime\":\"2026-09-18T10:14:55Z\",\"eventSource\":\"ec2.amazonaws.com\",\"eventName\":\"RunInstances\",\"awsRegion\":\"us-east-1\",\"sourceIPAddress\":\"203.0.113.10\",\"userAgent\":\"scrubbed\",\"requestParameters\":{\"instancesSet\":{\"items\":[{\"imageId\":\"ami-0f9e8d7c6b5a40000\",\"minCount\":1,\"maxCount\":1}]},\"instanceType\":\"t3.micro\"},\"responseElements\":{\"instancesSet\":{\"items\":[{\"instanceId\":\"i-0f9e8d7c6b5a40002\",\"instanceType\":\"t3.micro\",\"instanceState\":{\"code\":0,\"name\":\"pending\"}}]}},\"eventID\":\"7c4e8b11-aaaa-4bbb-8ccc-000000000003\",\"recipientAccountId\":\"000000000000\"}"
+    }
+  ],
+  "NextToken": "synthetic-next-page-token"
+}

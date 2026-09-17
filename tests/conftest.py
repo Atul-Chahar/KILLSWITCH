@@ -31,3 +31,8 @@ def attacker() -> ModuleType:
 @pytest.fixture(scope="session")
 def lookup() -> ModuleType:
     return load_script("lookup")
+
+
+@pytest.fixture(scope="session")
+def capture_fixture() -> ModuleType:
+    return load_script("capture_fixture")

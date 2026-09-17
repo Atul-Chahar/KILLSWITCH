@@ -1,0 +1,31 @@
+{
+  "Events": [
+    {
+      "EventId": "3f1d9c02-1111-4a2b-9c3d-000000000001",
+      "EventName": "RunInstances",
+      "ReadOnly": "false",
+      "AccessKeyId": "AKIAIOSFODNN7EXAMPLE",
+      "EventTime": "2026-09-18T10:12:41+00:00",
+      "EventSource": "ec2.amazonaws.com",
+      "Username": "demo-leaky-user",
+      "Resources": [
+        {
+          "ResourceType": "AWS::EC2::Instance",
+          "ResourceName": "i-0a1b2c3d4e5f60001"
+        }
+      ],
+      "CloudTrailEvent": "{\"eventVersion\":\"1.09\",\"userIdentity\":{\"type\":\"IAMUser\",\"principalId\":\"AIDAEXAMPLEPRINCIPAL\",\"arn\":\"arn:aws:iam::000000000000:user/demo-leaky-user\",\"accountId\":\"000000000000\",\"accessKeyId\":\"AKIAIOSFODNN7EXAMPLE\",\"userName\":\"demo-leaky-user\"},\"eventTime\":\"2026-09-18T10:12:41Z\",\"eventSource\":\"ec2.amazonaws.com\",\"eventName\":\"RunInstances\",\"awsRegion\":\"ap-south-1\",\"sourceIPAddress\":\"203.0.113.10\",\"userAgent\":\"scrubbed\",\"requestParameters\":{\"instancesSet\":{\"items\":[{\"imageId\":\"ami-0a1b2c3d4e5f60000\",\"minCount\":1,\"maxCount\":1}]},\"instanceType\":\"t3.micro\"},\"responseElements\":{\"instancesSet\":{\"items\":[{\"instanceId\":\"i-0a1b2c3d4e5f60001\",\"instanceType\":\"t3.micro\",\"instanceState\":{\"code\":0,\"name\":\"pending\"}}]}},\"requestID\":\"11111111-2222-3333-4444-555555555555\",\"eventID\":\"3f1d9c02-1111-4a2b-9c3d-000000000001\",\"recipientAccountId\":\"000000000000\"}"
+    },
+    {
+      "EventId": "3f1d9c02-1111-4a2b-9c3d-000000000002",
+      "EventName": "DescribeInstances",
+      "ReadOnly": "true",
+      "AccessKeyId": "AKIAIOSFODNN7EXAMPLE",
+      "EventTime": "2026-09-18T10:13:02+00:00",
+      "EventSource": "ec2.amazonaws.com",
+      "Username": "demo-leaky-user",
+      "Resources": [],
+      "CloudTrailEvent": "{\"eventVersion\":\"1.09\",\"userIdentity\":{\"type\":\"IAMUser\",\"arn\":\"arn:aws:iam::000000000000:user/demo-leaky-user\",\"accountId\":\"000000000000\",\"accessKeyId\":\"AKIAIOSFODNN7EXAMPLE\",\"userName\":\"demo-leaky-user\"},\"eventTime\":\"2026-09-18T10:13:02Z\",\"eventSource\":\"ec2.amazonaws.com\",\"eventName\":\"DescribeInstances\",\"awsRegion\":\"ap-south-1\",\"sourceIPAddress\":\"203.0.113.10\",\"userAgent\":\"scrubbed\",\"requestParameters\":{\"instancesSet\":{}},\"responseElements\":null,\"eventID\":\"3f1d9c02-1111-4a2b-9c3d-000000000002\",\"recipientAccountId\":\"000000000000\"}"
+    }
+  ]
+}

@@ -1,194 +1,81 @@
-"""Reading the evidence back. A missing event must never look like a clean result."""
+"""lookup.py is now a thin operator-facing view over investigate/. Test what it still owns."""
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
-from typing import Any
 
-import pytest
+from investigate.blast_radius import (
+    BlastRadius,
+    CreatedResource,
+    EvidenceProblem,
+    ProblemKind,
+    ResourceKind,
+)
 
-EVENT_TIME = datetime(2026, 9, 18, 10, 30, 0, tzinfo=UTC)
-SYNTHETIC_KEY = "AKIA" + "TESTFAKEKEY00001"
-
-
-def cloudtrail_record(
-    *,
-    event_id: str = "11111111-2222-3333-4444-555555555555",
-    event_name: str = "RunInstances",
-    region: str = "ap-south-1",
-    source_ip: str = "203.0.113.10",
-    instance_ids: tuple[str, ...] = ("i-0abc123def4567890",),
-    include_response_elements: bool = True,
-    resources: list[dict[str, str]] | None = None,
-) -> dict[str, Any]:
-    detail: dict[str, Any] = {
-        "eventVersion": "1.08",
-        "eventTime": EVENT_TIME.isoformat(),
-        "eventSource": "ec2.amazonaws.com",
-        "eventName": event_name,
-        "awsRegion": region,
-        "sourceIPAddress": source_ip,
-        "userIdentity": {"type": "IAMUser", "userName": "demo-leaky-user"},
-    }
-    if include_response_elements:
-        detail["responseElements"] = {
-            "instancesSet": {"items": [{"instanceId": i} for i in instance_ids]}
-        }
-    return {
-        "EventId": event_id,
-        "EventName": event_name,
-        "EventTime": EVENT_TIME,
-        "Username": "demo-leaky-user",
-        "Resources": resources or [],
-        "CloudTrailEvent": json.dumps(detail),
-    }
+NOW = datetime(2026, 9, 18, 11, 0, 0, tzinfo=UTC)
 
 
-class StubCloudTrail:
-    """Serves prepared pages and records the kwargs it was called with."""
-
-    def __init__(self, pages: list[dict[str, Any]]) -> None:
-        self.pages = pages
-        self.calls: list[dict[str, Any]] = []
-
-    def lookup_events(self, **kwargs: Any) -> dict[str, Any]:
-        self.calls.append(kwargs)
-        return self.pages[len(self.calls) - 1]
-
-
-class StubSession:
-    def __init__(self, per_region: dict[str, Any]) -> None:
-        self._per_region = per_region
-
-    def client(self, service: str, region_name: str) -> Any:
-        assert service == "cloudtrail"
-        return self._per_region[region_name]
-
-
-@pytest.fixture(autouse=True)
-def no_sleeping(monkeypatch, lookup):
-    monkeypatch.setattr(lookup.time, "sleep", lambda _seconds: None)
-
-
-def test_summarise_event_reads_instance_ids_from_the_response(lookup):
-    summary = lookup.summarise_event(cloudtrail_record())
-
-    assert summary.instance_ids == ("i-0abc123def4567890",)
-    assert summary.region == "ap-south-1"
-    assert summary.source_ip == "203.0.113.10"
-    assert summary.event_name == "RunInstances"
-
-
-def test_summarise_event_falls_back_to_the_resources_list(lookup):
-    record = cloudtrail_record(
-        include_response_elements=False,
-        resources=[{"ResourceType": "AWS::EC2::Instance", "ResourceName": "i-0fallback00000001"}],
+def radius(*, problems: list[EvidenceProblem] | None = None) -> BlastRadius:
+    return BlastRadius(
+        access_key_id="AKIA" + "IOSFODNN7EXAMPLE",
+        regions_searched=["ap-south-1"],
+        window_start=NOW,
+        window_end=NOW,
+        resources=[
+            CreatedResource(
+                resource_id="i-0a1b2c3d4e5f60001",
+                kind=ResourceKind.EC2_INSTANCE,
+                event_name="RunInstances",
+                region="ap-south-1",
+                event_time=NOW,
+                source_ip="203.0.113.10",
+                event_id="abc",
+            )
+        ],
+        problems=problems or [],
     )
 
-    assert lookup.summarise_event(record).instance_ids == ("i-0fallback00000001",)
+
+def test_the_report_shows_each_created_resource(lookup, capsys):
+    lookup.print_report(radius())
+
+    printed = capsys.readouterr().out
+    assert "i-0a1b2c3d4e5f60001" in printed
+    assert "ap-south-1" in printed
+    assert "RunInstances" in printed
 
 
-def test_an_event_with_no_instance_id_is_reported_not_invented(lookup):
-    record = cloudtrail_record(include_response_elements=False, resources=[])
+def test_an_empty_radius_says_so_rather_than_printing_an_empty_table(lookup, capsys):
+    empty = radius()
+    empty.resources.clear()
 
-    assert lookup.summarise_event(record).instance_ids == ()
+    lookup.print_report(empty)
 
-
-def test_an_unreadable_event_body_raises(lookup):
-    record = cloudtrail_record()
-    record["CloudTrailEvent"] = "{not json"
-
-    with pytest.raises(lookup.EvidenceError, match="unparseable"):
-        lookup.summarise_event(record)
+    assert "no resources created by this key" in capsys.readouterr().out
 
 
-def test_a_missing_event_body_raises(lookup):
-    record = cloudtrail_record()
-    del record["CloudTrailEvent"]
-
-    with pytest.raises(lookup.EvidenceError, match="no CloudTrailEvent body"):
-        lookup.summarise_event(record)
-
-
-def test_lookup_filters_by_access_key_id(lookup):
-    client = StubCloudTrail([{"Events": [cloudtrail_record()]}])
-
-    lookup.lookup_by_access_key(client, SYNTHETIC_KEY, start_time=EVENT_TIME, end_time=EVENT_TIME)
-
-    attribute = client.calls[0]["LookupAttributes"][0]
-    assert attribute["AttributeKey"] == "AccessKeyId"
-    assert attribute["AttributeValue"] == SYNTHETIC_KEY
-
-
-def test_lookup_follows_pagination_to_the_end(lookup):
-    client = StubCloudTrail(
-        [
-            {"Events": [cloudtrail_record(event_id="page-1")], "NextToken": "more"},
-            {"Events": [cloudtrail_record(event_id="page-2")]},
-        ]
+def test_incomplete_evidence_is_shouted_about_on_stderr(lookup, capsys):
+    problem = EvidenceProblem(
+        kind=ProblemKind.REGION_LOOKUP_FAILED, region="us-east-1", aws_error_code="AccessDenied"
     )
 
-    records = lookup.lookup_by_access_key(
-        client, SYNTHETIC_KEY, start_time=EVENT_TIME, end_time=EVENT_TIME
-    )
+    lookup.print_report(radius(problems=[problem]))
 
-    assert [record["EventId"] for record in records] == ["page-1", "page-2"]
-    assert client.calls[1]["NextToken"] == "more"
-
-
-def test_collect_gathers_both_regions_and_filters_by_event_name(lookup):
-    session = StubSession(
-        {
-            "ap-south-1": StubCloudTrail(
-                [
-                    {
-                        "Events": [
-                            cloudtrail_record(event_id="run-1"),
-                            cloudtrail_record(
-                                event_id="describe-1", event_name="DescribeInstances"
-                            ),
-                        ]
-                    }
-                ]
-            ),
-            "us-east-1": StubCloudTrail(
-                [{"Events": [cloudtrail_record(event_id="run-2", region="us-east-1")]}]
-            ),
-        }
-    )
-
-    summaries, problems = lookup.collect(
-        session,
-        SYNTHETIC_KEY,
-        ["ap-south-1", "us-east-1"],
-        hours=3,
-        event_name="RunInstances",
-    )
-
-    assert problems == []
-    assert {summary.event_id for summary in summaries} == {"run-1", "run-2"}
+    errors = capsys.readouterr().err
+    assert "EVIDENCE IS INCOMPLETE" in errors
+    assert "us-east-1" in errors
+    assert "AccessDenied" in errors
 
 
-def test_collect_reports_a_region_with_no_events_without_failing(lookup):
-    session = StubSession({"ap-south-1": StubCloudTrail([{"Events": []}])})
+def test_regions_default_to_the_environment(lookup, monkeypatch):
+    monkeypatch.delenv("AWS_REGION", raising=False)
+    monkeypatch.delenv("AWS_SECONDARY_REGION", raising=False)
 
-    summaries, problems = lookup.collect(
-        session, SYNTHETIC_KEY, ["ap-south-1"], hours=3, event_name=None
-    )
-
-    assert summaries == []
-    assert problems == []
+    assert lookup.main(["AKIA" + "IOSFODNN7EXAMPLE"]) == 2
 
 
-def test_collect_surfaces_unreadable_evidence_as_a_problem(lookup):
-    broken = cloudtrail_record()
-    broken["CloudTrailEvent"] = "{not json"
-    session = StubSession({"ap-south-1": StubCloudTrail([{"Events": [broken]}])})
+def test_the_documented_flags_parse(lookup):
+    args = lookup.parse_args(["AKIA" + "IOSFODNN7EXAMPLE", "--wait", "900", "--hours", "6"])
 
-    summaries, problems = lookup.collect(
-        session, SYNTHETIC_KEY, ["ap-south-1"], hours=3, event_name=None
-    )
-
-    assert summaries == []
-    assert len(problems) == 1, "unreadable evidence must be reported, never dropped"
+    assert args.wait == 900
+    assert args.hours == 6
