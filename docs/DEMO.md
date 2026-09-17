@@ -9,6 +9,25 @@
 5. Blur or redact the account id in the video and in screenshots.
 6. Watch the final video once specifically looking for a visible secret before uploading.
 
+## Which narrator to film with
+
+The plan on camera can come from either narrator, and the choice is a judgement call, not
+a detail:
+
+| `NARRATOR_MODE` | What the plan is | When to use it |
+|---|---|---|
+| unset or `bedrock` | Written by a real model on Bedrock, live | The honest headline. Whether it produces a verifier rejection is out of our hands, and the model gets exactly one turn, so a bad turn means the Narrate step fails on camera |
+| `rehearsal` | A fixed plan that always includes one instance the key never created | The guardrail shot at 1:20. Deterministic: the verifier strikes exactly one row every time |
+
+The console labels the second one "Rehearsal narrator, not a model and not evidence", in
+the same place the first one says "Written by the model". **Do not crop that label out.**
+Presenting a fixed plan as a model's work is the one thing that would make the whole
+safety argument dishonest.
+
+If you have time for two runs, film the Bedrock one and keep the rehearsal one as the
+backup. If you have one run, use `bedrock` and accept that the struck-out row may not
+appear; the 2:15 denial segment still shows the gate working.
+
 ## Rehearsal checklist
 
 - [ ] Reset script empties the demo account (terminate instances, reactivate a fresh key)
@@ -16,6 +35,8 @@
 - [ ] Console loads in a fresh browser session with no cached login
 - [ ] Phone approval works on mobile data, not just campus Wi-Fi
 - [ ] Have a recorded backup run in case the live one fails on camera
+- [ ] Console rehearsed in fixture mode (`cd console && npm run dev`), which needs no account
+- [ ] `make lambda-package` run on the machine you deploy from, and its platform check passed
 
 ## The 3-minute video
 
@@ -38,5 +59,6 @@ Rules for the recording: no dead air, no reading the README aloud, cursor moves 
 | Doesn't AWS already quarantine leaked keys? | Only keys it detects, and quarantine does not terminate what the attacker launched, clean the repository, or explain what happened. We use AWS's quarantine event as our second trigger |
 | GitHub push protection blocks this | Only on GitHub, and it can be bypassed. Keys also leak through Discord, Postman collections and frontend bundles |
 | Why not GitGuardian? | Those tools alert. We investigate, contain with a human in the loop, and verify the end state |
-| Is an LLM deleting my resources safe? | The model never decides. It proposes, deterministic code verifies ownership, a policy decides what needs approval, a human approves |
+| Is an LLM deleting my resources safe? | The model never decides. It proposes, deterministic code verifies ownership, a policy decides what needs approval, a human approves. The agent is constructed with no tools at all, so it has nothing to act with |
+| What if the model returns malformed JSON? | The step fails. Strands would hand the schema error back to the model and let it retry; we switched that off, so the model gets one turn and cannot negotiate with the validator |
 | What if the agent is wrong? | Show the denial path in the video. Nothing destructive happens without approval, and every rejection is logged |
