@@ -1,0 +1,165 @@
+{
+  "StartAt": "Investigate",
+  "States": {
+    "Investigate": {
+      "Next": "Narrate",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ClientExecutionTimeoutException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Type": "Task",
+      "Resource": "<arn resolved at deploy time>"
+    },
+    "Narrate": {
+      "Next": "Verify",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ClientExecutionTimeoutException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Type": "Task",
+      "Resource": "<arn resolved at deploy time>"
+    },
+    "Verify": {
+      "Next": "Authorize",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ClientExecutionTimeoutException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Type": "Task",
+      "Resource": "<arn resolved at deploy time>"
+    },
+    "Authorize": {
+      "Next": "WaitForHumanApproval",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ClientExecutionTimeoutException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Type": "Task",
+      "Resource": "<arn resolved at deploy time>"
+    },
+    "WaitForHumanApproval": {
+      "Next": "Contain",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ClientExecutionTimeoutException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Type": "Task",
+      "TimeoutSeconds": 3600,
+      "ResultPath": "$.approval",
+      "Resource": "arn:<arn resolved at deploy time>:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "<arn resolved at deploy time>",
+        "Payload": {
+          "incident_id.$": "$.incident_id",
+          "blast_radius.$": "$.blast_radius",
+          "verification.$": "$.verification",
+          "tiers.$": "$.tiers",
+          "summary.$": "$.summary",
+          "narrator.$": "$.narrator",
+          "task_token.$": "$$.Task.Token"
+        }
+      }
+    },
+    "Contain": {
+      "Next": "ConfirmEndState",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ClientExecutionTimeoutException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Type": "Task",
+      "Resource": "<arn resolved at deploy time>"
+    },
+    "ConfirmEndState": {
+      "Next": "WasItConfirmed",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ClientExecutionTimeoutException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Type": "Task",
+      "Resource": "<arn resolved at deploy time>"
+    },
+    "WasItConfirmed": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.confirmed",
+          "BooleanEquals": true,
+          "Next": "Contained"
+        }
+      ],
+      "Default": "ContainmentUnconfirmed"
+    },
+    "ContainmentUnconfirmed": {
+      "Type": "Fail",
+      "Error": "ContainmentUnconfirmed",
+      "Cause": "AWS did not confirm the expected end state for every action"
+    },
+    "Contained": {
+      "Type": "Succeed"
+    }
+  },
+  "TimeoutSeconds": 7200
+}

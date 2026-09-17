@@ -1,0 +1,46 @@
+# KILLSWITCH test run
+# 2026-09-17T21:23:03Z, Python 3.12.13.
+# Every AWS client in these tests is an in-memory fake, and every Strands agent is a stub.
+# Nothing in this run called a real AWS service or a real model.
+
+============================= test session starts ==============================
+collected 246 items
+
+tests/test_approval_api.py ...........                                   [  4%]
+tests/test_attacker.py ........                                          [  7%]
+tests/test_authorize.py ................                                 [ 14%]
+tests/test_blast_radius.py ..........                                    [ 18%]
+tests/test_capture_fixture.py ........                                   [ 21%]
+tests/test_check_secrets.py ........                                     [ 24%]
+tests/test_console_api_stack.py ....                                     [ 26%]
+tests/test_containment.py ..................                             [ 33%]
+tests/test_demo_target_stack.py .........                                [ 37%]
+tests/test_detect_handler.py ...........                                 [ 41%]
+tests/test_detect_patterns.py ........                                   [ 45%]
+tests/test_detect_webhook.py .......                                     [ 47%]
+tests/test_detection_stack.py .........                                  [ 51%]
+tests/test_end_state.py ..........                                       [ 55%]
+tests/test_guards.py ......                                              [ 58%]
+tests/test_identify.py .....                                             [ 60%]
+tests/test_incidents.py ........                                         [ 63%]
+tests/test_layout.py ..........                                          [ 67%]
+tests/test_lookup.py .....                                               [ 69%]
+tests/test_narrate.py ..................................                 [ 83%]
+tests/test_response_stack.py ..................                          [ 90%]
+tests/test_verifier.py .......................                           [100%]
+
+============================= 246 passed in 3.95s ==============================
+
+# console
+> vitest run
+
+
+ RUN  v2.1.9 /Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/console
+
+ ✓ src/cost.test.ts (7 tests) 15ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  02:53:08
+   Duration  243ms (transform 24ms, setup 0ms, collect 19ms, tests 15ms, environment 0ms, prepare 50ms)
+

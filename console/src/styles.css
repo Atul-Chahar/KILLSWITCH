@@ -159,10 +159,13 @@ h3 {
   border-color: var(--warn);
 }
 
+/* On its own line. Inline, the label ran straight into the prose it is labelling,
+   which is the one place on this screen where the boundary has to be obvious. */
 .chip.untrusted {
   color: var(--warn);
   border-color: var(--warn);
-  display: inline-block;
+  display: block;
+  width: fit-content;
   margin: 0 0 8px;
 }
 

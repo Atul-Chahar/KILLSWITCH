@@ -146,13 +146,22 @@ This screen is the Best UI entry. Treat it as a product, not a form.
 
 ## Phase 8 — Proof, docs, video (4 h, Sat 19 evening to Sun 20)
 
-- [ ] README in the winner shape: one-line pitch, diagram, why it matters, safety model, AWS services table, quickstart, limitations
-- [ ] `evidence/`: screenshots, a saved Step Functions execution graph, test output
-- [ ] Blog post on AWS Builder Center
-- [ ] `docs/AI-TOOLS.md`, `docs/CREDITS.md` final
-- [ ] Record the 3-minute video per `docs/DEMO.md`, in one clean take after two rehearsals
+- [x] README in the winner shape: one-line pitch, mermaid diagram, why it matters, safety
+      model with a table of which test checks which guard, AWS services table, quickstart,
+      tests, and twelve specific limitations
+- [x] `evidence/`: console screenshots in fixture mode, the synthesized state machine
+      definition, and the full test output. `evidence/README.md` says what each one proves
+      and what is missing
+- [ ] **No Step Functions execution graph**, because no execution has ever run. The
+      synthesized definition is there instead, labelled as such
+- [ ] **No mobile screenshot.** The browser window resize did not apply during capture;
+      `evidence/README.md` has the command to take it by hand
+- [x] Blog post drafted in `docs/blog.md`, for AWS Builder Center
+- [x] `docs/AI-TOOLS.md`, `docs/CREDITS.md` final
+- [ ] Record the 3-minute video per `docs/DEMO.md` — **operator**
+- [ ] Publish the blog and the live URL — **operator**
 - [ ] `/code-review` and `security-reviewer` pass, then freeze
-- [ ] Submit
+- [ ] Submit — **operator**
 - **Commit:** `docs: judge-facing README, evidence and limitations`
 
 ---
