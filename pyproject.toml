@@ -1,0 +1,34 @@
+[project]
+name = "killswitch"
+version = "0.1.0"
+description = "Leaked-AWS-credential responder: detect, investigate, verify, human-approve, contain."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = ["cdk.out", ".venv", "console"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ANN", "S", "RET", "SIM"]
+ignore = [
+    "ANN401", # typing.Any is occasionally the honest type for AWS API payloads
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "S101", "S105", "S106"]
+"scripts/*" = ["S105", "S106"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["detect", "investigate", "narrate", "verifier", "authorize", "containment", "shared", "workflow"]
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+ignore_missing_imports = true

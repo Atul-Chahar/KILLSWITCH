@@ -1,0 +1,3 @@
+# Runtime dependencies. Lambdas run on Python 3.12.
+boto3>=1.34
+pydantic>=2.7
