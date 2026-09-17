@@ -20,6 +20,7 @@ from aws_cdk import aws_lambda as lambda_
 from constructs import Construct
 
 INCIDENT_PARTITION_KEY = "incident_id"
+INCIDENT_SORT_KEY = "sk"
 LAMBDA_TIMEOUT = Duration.seconds(30)
 QUARANTINE_EVENT_NAMES = ["AttachUserPolicy", "PutUserPolicy"]
 
@@ -43,6 +44,10 @@ class DetectionStack(Stack):
             partition_key=dynamodb.Attribute(
                 name=INCIDENT_PARTITION_KEY, type=dynamodb.AttributeType.STRING
             ),
+            # The incident, each approval decision and every audit row share a partition
+            # and are separated by the sort key, so a decision and the actions taken
+            # under it cannot end up in different places.
+            sort_key=dynamodb.Attribute(name=INCIDENT_SORT_KEY, type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True

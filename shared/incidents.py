@@ -5,7 +5,15 @@ from __future__ import annotations
 from typing import Any
 
 from botocore.exceptions import ClientError
+from boto3.dynamodb.conditions import Key
 
+from shared.approvals import (
+    APPROVAL_PREFIX,
+    AUDIT_PREFIX,
+    INCIDENT_SORT_KEY,
+    ApprovalRecord,
+    AuditEntry,
+)
 from shared.models import IncidentRecord
 
 CONDITIONAL_CHECK_FAILED = "ConditionalCheckFailedException"
@@ -22,9 +30,10 @@ class IncidentStore:
         trigger writes first owns the record, and the loser reads it back rather
         than overwriting a detection that is already under way.
         """
+        item = record.to_item() | {"sk": INCIDENT_SORT_KEY}
         try:
             self._table.put_item(
-                Item=record.to_item(),
+                Item=item,
                 ConditionExpression="attribute_not_exists(incident_id)",
             )
         except ClientError as error:
@@ -37,8 +46,41 @@ class IncidentStore:
         return record, True
 
     def get(self, incident_id: str) -> IncidentRecord | None:
-        response = self._table.get_item(Key={"incident_id": incident_id})
+        response = self._table.get_item(
+            Key={"incident_id": incident_id, "sk": INCIDENT_SORT_KEY}
+        )
         item = response.get("Item")
         if item is None:
             return None
         return IncidentRecord.from_item(item)
+
+    def set_approval_token(self, incident_id: str, approval_token: str) -> None:
+        """Record the token the workflow is waiting on, so containment can check it."""
+        self._table.update_item(
+            Key={"incident_id": incident_id, "sk": INCIDENT_SORT_KEY},
+            UpdateExpression="SET approval_token = :token, #status = :status",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":token": approval_token, ":status": "awaiting_approval"},
+        )
+
+    def record_decision(self, decision: ApprovalRecord) -> None:
+        self._table.put_item(Item=decision.to_item())
+
+    def decision_for(self, incident_id: str, action_signature: str) -> ApprovalRecord | None:
+        response = self._table.get_item(
+            Key={"incident_id": incident_id, "sk": f"{APPROVAL_PREFIX}{action_signature}"}
+        )
+        item = response.get("Item")
+        if item is None:
+            return None
+        return ApprovalRecord.model_validate(item)
+
+    def append_audit(self, entry: AuditEntry) -> None:
+        self._table.put_item(Item=entry.to_item())
+
+    def audit_trail(self, incident_id: str) -> list[AuditEntry]:
+        response = self._table.query(
+            KeyConditionExpression=Key("incident_id").eq(incident_id)
+            & Key("sk").begins_with(AUDIT_PREFIX)
+        )
+        return [AuditEntry.model_validate(item) for item in response.get("Items", [])]
