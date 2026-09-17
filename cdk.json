@@ -1,0 +1,9 @@
+{
+  "app": ".venv/bin/python -m infra.app",
+  "watch": {
+    "exclude": ["**/.venv/**", "**/node_modules/**", "tests/**", "console/**"]
+  },
+  "context": {
+    "@aws-cdk/core:checkSecretUsage": true
+  }
+}

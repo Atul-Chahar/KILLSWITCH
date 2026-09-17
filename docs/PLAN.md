@@ -8,20 +8,28 @@ Time budget is in hours of actual work, not wall clock. The deadline is Sunday 2
 
 ## Phase 0 — Ground rules and repo (1 h, Thu 17)
 
-- [ ] `git init`, first commit today, public repo created
-- [ ] `CLAUDE.md`, `docs/`, `.gitignore`, `.env.example`, `scripts/check_secrets.sh` in place
-- [ ] Dedicated demo AWS account created, budget alarm set at a low amount
-- [ ] `docs/AI-TOOLS.md` and `docs/CREDITS.md` started
-- **Proof:** `scripts/check_secrets.sh` runs clean, repo is public, first commit timestamped 17 Sep
+- [x] `git init`, first commit today, repo pushed to `origin`
+- [x] `CLAUDE.md`, `docs/`, `.gitignore`, `.env.example`, `scripts/check_secrets.sh` in place
+- [ ] Dedicated demo AWS account created, budget alarm set at a low amount — **operator, not confirmed here**
+- [x] `docs/AI-TOOLS.md` and `docs/CREDITS.md` started
+- **Proof:** `scripts/check_secrets.sh` runs clean (`make check`), first commit timestamped 17 Sep
+- Also done: module scaffold and `make install/test/lint/typecheck/check`, plus eight regression
+  tests for the secret scanner after it was found to skip markdown entirely and to treat AWS's
+  example key as a whole-file pass
 
 ## Phase 1 — The attack, reproducible (2 h, Thu 17)
 
 Build the thing we are defending against first. Everything downstream needs real CloudTrail events to read.
 
-- [ ] CDK stack `DemoTargetStack`: an IAM user `demo-leaky-user` whose policy only allows `ec2:RunInstances` with a condition limiting instance type to `t3.micro`, in two regions
-- [ ] `scripts/attacker.py`: uses the demo key to launch instances in both regions and tag them, printing a timeline
-- [ ] Confirm the events land in CloudTrail and can be read back by access key id
-- **Proof:** `python scripts/attacker.py` launches instances, `python scripts/lookup.py <AKID>` prints them back from CloudTrail
+- [x] CDK stack `DemoTargetStack`: an IAM user `demo-leaky-user` whose policy only allows `ec2:RunInstances` with a condition limiting instance type to `t3.micro`, in two regions
+- [x] `scripts/attacker.py`: uses the demo key to launch instances in both regions and tag them, printing a timeline
+- [ ] Confirm the events land in CloudTrail and can be read back by access key id — **needs a real run in the demo account**
+- **Proof so far:** the stack synthesizes to CloudFormation with all seven statements and no
+  access-key resource; 51 tests pass, covering the policy shape, the launch call, the
+  demo-account guard, CloudTrail pagination and unreadable-evidence handling. Both scripts are
+  unit tested against stubs and have **never been run against AWS**.
+- **Still unproven:** everything that needs the demo account — the deploy, the launch, and the
+  CloudTrail readback. Commands are in `docs/RUNBOOK.md`.
 - **Commit:** `feat: reproducible demo attack and CloudTrail readback`
 
 ## Phase 2 — Detection (2 h, Thu 17 evening)
