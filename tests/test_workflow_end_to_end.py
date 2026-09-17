@@ -336,3 +336,44 @@ def test_investigation_rebuilds_the_same_blast_radius_the_rest_of_the_chain_expe
     }
     assert found == {(LAUNCHED, PRIMARY), (SECOND_LAUNCHED, SECONDARY)}
     assert state["blast_radius"]["problems"] == []
+
+
+def test_the_console_can_see_the_confirmed_end_state_after_containment(world):
+    """confirm_task's answer has to reach DynamoDB. The console cannot read execution state."""
+    state = up_to_approval(world)
+    submit(world, {sig: ApprovalState.APPROVED for sig in signatures(state).values()})
+    tasks.confirm_task(tasks.contain_task(state))
+
+    view = approval_api.incident_view(world.store, INCIDENT_ID)
+
+    assert view is not None
+    assert view["status"] == IncidentStatus.CONTAINED.value
+    assert view["end_state"] is not None
+    assert {target["target"] for target in view["end_state"]["targets"]} == {
+        KEY,
+        LAUNCHED,
+        SECOND_LAUNCHED,
+    }
+    assert all(target["confirmed"] for target in view["end_state"]["targets"])
+
+
+def test_an_incident_that_ended_unconfirmed_says_so_on_the_screen(world):
+    """The one status that must never be rounded up. A denied instance is still running."""
+    state = up_to_approval(world)
+    by_target = signatures(state)
+    submit(
+        world,
+        {
+            by_target[KEY]: ApprovalState.APPROVED,
+            by_target[LAUNCHED]: ApprovalState.APPROVED,
+            by_target[SECOND_LAUNCHED]: ApprovalState.DENIED,
+        },
+    )
+    tasks.confirm_task(tasks.contain_task(state))
+
+    view = approval_api.incident_view(world.store, INCIDENT_ID)
+
+    assert view is not None
+    assert view["status"] == IncidentStatus.FAILED.value
+    unconfirmed = [t for t in view["end_state"]["targets"] if not t["confirmed"]]
+    assert [t["target"] for t in unconfirmed] == [SECOND_LAUNCHED]
