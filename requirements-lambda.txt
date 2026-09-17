@@ -2,3 +2,4 @@
 # boto3 and botocore are deliberately absent: the Python 3.12 Lambda runtime
 # already provides them, and bundling them again bloats every deploy.
 pydantic>=2.7
+strands-agents>=1.56,<2

@@ -153,3 +153,64 @@ def test_every_task_knows_which_policy_store_to_ask(template: Template):
     ]
 
     assert all("VERIFIED_PERMISSIONS_POLICY_STORE_ID" in item for item in variables)
+
+
+def test_the_narrator_may_ask_the_model_and_do_nothing_else(template: Template):
+    """One grant, one action. The component we do not trust gets the least we can give it."""
+    statements = _statements_by_sid(template)
+
+    assert set(statements["AskTheModelToPropose"]) == {"bedrock:InvokeModel"}
+
+
+def test_no_other_principal_in_the_stack_may_call_bedrock(template: Template):
+    statements = _statements_by_sid(template)
+    carrying_bedrock = {
+        sid
+        for sid, actions in statements.items()
+        if any(action.startswith("bedrock:") for action in actions)
+    }
+
+    assert carrying_bedrock == {"AskTheModelToPropose"}
+
+
+def test_the_narrators_whole_role_is_bedrock_plus_the_incident_table(template: Template):
+    """Asserted on the role's own policy, so an extra grant cannot hide behind a missing Sid."""
+    policies = [
+        policy
+        for logical_id, policy in template.find_resources("AWS::IAM::Policy").items()
+        if logical_id.startswith("NarrateFunctionServiceRole")
+    ]
+    granted: set[str] = set()
+    for policy in policies:
+        for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+            action = statement["Action"]
+            granted.update([action] if isinstance(action, str) else action)
+
+    assert policies, "the narrator has no role policy, so this test proved nothing"
+    assert {action for action in granted if not action.startswith("dynamodb:")} == {
+        "bedrock:InvokeModel"
+    }
+
+
+def test_the_model_writes_the_plan_before_the_verifier_judges_it(template: Template):
+    definition = state_machine_definition(template)
+
+    assert definition.index("Investigate") < definition.index("Narrate")
+    assert definition.index("Narrate") < definition.index("Verify")
+
+
+def test_the_narrator_is_told_which_model_to_ask(template: Template):
+    functions = template.find_resources("AWS::Lambda::Function")
+    variables = [
+        function["Properties"]["Environment"]["Variables"] for function in functions.values()
+    ]
+
+    assert all("BEDROCK_MODEL_ID" in item for item in variables)
+
+
+def test_the_human_sees_the_summary_the_narrator_wrote(template: Template):
+    """The summary lives in the execution state; the console can only read DynamoDB."""
+    definition = state_machine_definition(template)
+
+    assert "$.summary" in definition
+    assert "$.narrator" in definition
