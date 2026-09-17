@@ -138,3 +138,15 @@ class FakeEc2:
                 {"InstanceId": instance_id, "State": {"Name": self.instances[instance_id]}}
             )
         return {"Reservations": [{"Instances": instances}]}
+
+
+class FakeCloudTrail:
+    """LookupEvents for one region. Records are handed in already shaped."""
+
+    def __init__(self, records: list[dict[str, Any]] | None = None) -> None:
+        self.records = records or []
+        self.lookup_calls: list[dict[str, Any]] = []
+
+    def lookup_events(self, **kwargs: Any) -> dict[str, Any]:
+        self.lookup_calls.append(dict(kwargs))
+        return {"Events": list(self.records)}

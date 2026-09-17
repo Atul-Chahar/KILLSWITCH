@@ -11,11 +11,12 @@ is the deterministic rehearsal one, so the assertions are about wiring, not abou
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
-from fakes import FakeEc2, FakeIam, FakeTable
+from fakes import FakeCloudTrail, FakeEc2, FakeIam, FakeTable
 
 from investigate.blast_radius import BlastRadius, CreatedResource, ResourceKind
 from narrate.narrator import NarratorMode
@@ -36,6 +37,22 @@ SECOND_LAUNCHED = "i-0f9e8d7c6b5a40002"
 TOKEN = "task-token-from-step-functions"
 NOW = datetime(2026, 9, 18, 11, 0, 0, tzinfo=UTC)
 INCIDENT_ID = incident_id_for(KEY)
+
+
+def run_instances_record(instance_id: str, region: str) -> dict:
+    """A CloudTrail LookupEvents record, the shape investigate/ parses."""
+    return {
+        "EventId": f"event-{instance_id}",
+        "EventName": "RunInstances",
+        "EventTime": NOW,
+        "CloudTrailEvent": json.dumps(
+            {
+                "awsRegion": region,
+                "sourceIPAddress": "203.0.113.10",
+                "responseElements": {"instancesSet": {"items": [{"instanceId": instance_id}]}},
+            }
+        ),
+    }
 
 
 def created(resource_id: str, region: str) -> CreatedResource:
@@ -71,13 +88,22 @@ class World:
             PRIMARY: FakeEc2({LAUNCHED: "running"}),
             SECONDARY: FakeEc2({SECOND_LAUNCHED: "running"}),
         }
+        self.cloudtrail = {
+            PRIMARY: FakeCloudTrail([run_instances_record(LAUNCHED, PRIMARY)]),
+            SECONDARY: FakeCloudTrail([run_instances_record(SECOND_LAUNCHED, SECONDARY)]),
+        }
 
     def client(self, name: str, region_name: str | None = None, **_: object) -> object:
         if name == "iam":
             return self.iam
         if name == "ec2":
             return self.ec2[str(region_name)]
+        if name == "cloudtrail":
+            return self.cloudtrail[str(region_name)]
         raise AssertionError(f"the workflow asked for an unexpected client: {name}")
+
+    def session(self) -> object:
+        return SimpleNamespace(client=self.client)
 
     def resource(self, name: str, **_: object) -> object:
         assert name == "dynamodb"
@@ -95,6 +121,7 @@ def world(monkeypatch) -> World:
     for module in (tasks, approval_api):
         monkeypatch.setattr(module.boto3, "client", built.client)
         monkeypatch.setattr(module.boto3, "resource", built.resource)
+    monkeypatch.setattr(tasks.boto3, "Session", built.session)
 
     built.store.create_if_absent(
         IncidentRecord(
@@ -276,3 +303,36 @@ def test_the_audit_trail_records_every_action_before_and_after_it_happened(world
     assert len(before) == 3
     assert len(after) == 3
     assert [entry.sk for entry in trail] == sorted(entry.sk for entry in trail)
+
+
+def test_a_push_incident_learns_its_key_owner_and_can_still_deactivate_the_key(world):
+    """The GitHub trigger never knows the owning user. Only investigation can find it.
+
+    If that answer lives only in the execution state, contain_task re-reads an incident
+    with no owner and refuses to deactivate the key, which is the headline action.
+    """
+    world.table.items[(INCIDENT_ID, "incident")].pop("key_owner")
+
+    state = tasks.investigate_task({"incident_id": INCIDENT_ID})
+    state = tasks.narrate_task(state)
+    state = tasks.verify_task(state)
+    state = tasks.authorize_task(state)
+    tasks.request_approval_task({**state, "task_token": TOKEN})
+    submit(world, {sig: ApprovalState.APPROVED for sig in signatures(state).values()})
+    final = tasks.confirm_task(tasks.contain_task(state))
+
+    assert world.store.get(INCIDENT_ID).key_owner == USER
+    assert world.iam.keys_by_user[USER][0]["Status"] == "Inactive"
+    assert final["confirmed"] is True
+    assert final["status"] == IncidentStatus.CONTAINED.value
+
+
+def test_investigation_rebuilds_the_same_blast_radius_the_rest_of_the_chain_expects(world):
+    state = tasks.investigate_task({"incident_id": INCIDENT_ID})
+
+    found = {
+        (resource["resource_id"], resource["region"])
+        for resource in state["blast_radius"]["resources"]
+    }
+    assert found == {(LAUNCHED, PRIMARY), (SECOND_LAUNCHED, SECONDARY)}
+    assert state["blast_radius"]["problems"] == []
