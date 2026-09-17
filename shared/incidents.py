@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key
+from botocore.exceptions import ClientError
 
 from shared.approvals import (
     APPROVAL_PREFIX,
@@ -46,9 +46,7 @@ class IncidentStore:
         return record, True
 
     def get(self, incident_id: str) -> IncidentRecord | None:
-        response = self._table.get_item(
-            Key={"incident_id": incident_id, "sk": INCIDENT_SORT_KEY}
-        )
+        response = self._table.get_item(Key={"incident_id": incident_id, "sk": INCIDENT_SORT_KEY})
         item = response.get("Item")
         if item is None:
             return None

@@ -49,7 +49,10 @@ def test_the_incident_table_is_partitioned_by_incident_id(template: Template):
     template.has_resource_properties(
         "AWS::DynamoDB::Table",
         {
-            "KeySchema": [{"AttributeName": "incident_id", "KeyType": "HASH"}],
+            "KeySchema": [
+                {"AttributeName": "incident_id", "KeyType": "HASH"},
+                {"AttributeName": "sk", "KeyType": "RANGE"},
+            ],
             "BillingMode": "PAY_PER_REQUEST",
         },
     )

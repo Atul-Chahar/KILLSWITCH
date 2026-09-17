@@ -34,6 +34,16 @@ class AuditStage(StrEnum):
     FAILED = "failed"
 
 
+# Two rows written in the same microsecond would otherwise sort by their random uuid, so
+# the stage's position in the action's life is part of the sort key.
+STAGE_ORDER: dict[AuditStage, int] = {
+    AuditStage.BEFORE: 0,
+    AuditStage.REFUSED: 1,
+    AuditStage.AFTER: 1,
+    AuditStage.FAILED: 1,
+}
+
+
 def action_signature(action_type: str, target: str, region: str | None) -> str:
     """The identity of one action. An approval is scoped to exactly this string."""
     return f"{action_type}:{target}:{region or '-'}"
@@ -97,9 +107,10 @@ class AuditEntry(BaseModel):
         details: dict[str, str] | None = None,
     ) -> AuditEntry:
         when = recorded_at or datetime.now(UTC)
+        order = STAGE_ORDER[stage]
         return cls(
             incident_id=incident_id,
-            sk=f"{AUDIT_PREFIX}{when.isoformat()}#{uuid.uuid4()}",
+            sk=f"{AUDIT_PREFIX}{when.isoformat()}#{order}#{uuid.uuid4()}",
             stage=stage,
             action_signature=action_signature,
             recorded_at=when,
