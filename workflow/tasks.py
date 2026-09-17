@@ -66,6 +66,12 @@ def investigate_task(event: dict[str, Any], _context: Any = None) -> dict[str, A
             # a key whose owner it does not know, which is the correct outcome here.
             key_owner = None
 
+    # Persisted, not just returned. A push incident has no owner until now, and
+    # containment re-reads the record rather than the execution state, so an owner that
+    # lives only in the state means the key can never be deactivated.
+    if key_owner and key_owner != incident.key_owner:
+        store.save_artifacts(incident_id, {"key_owner": key_owner})
+
     radius = build_blast_radius(boto3.Session(), incident.access_key_id, _demo_regions())
     return {
         "incident_id": incident_id,

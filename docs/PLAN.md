@@ -163,7 +163,11 @@ This screen is the Best UI entry. Treat it as a product, not a form.
 - [x] Security review pass. No exploitable vulnerability introduced; the local filesystem
       path in `evidence/test-output.txt` was redacted, and the narrator's wildcard Bedrock
       resource is documented as README limitation 13 rather than silently left
-- [x] Two real bugs found while reviewing, both fixed with tests:
+- [x] Three real bugs found while reviewing, all fixed test-first. The worst was on the
+      primary demo path: a key leaked by a GitHub push could never be deactivated, because
+      `investigate_task` resolved the owning IAM user into the execution state and never
+      wrote it to the incident, while `contain_task` re-reads the incident. Every existing
+      test seeded `key_owner`, so nothing saw it. The other two:
       `ResponseStack` deployed happily without `BEDROCK_MODEL_ID` into a workflow certain to
       fail at Narrate, and `make lambda-package` had been building a **macOS** asset since
       phase 0 — `_pydantic_core.cpython-312-darwin.so` would have failed to import on Lambda
