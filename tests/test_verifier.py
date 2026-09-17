@@ -76,7 +76,9 @@ def verify(proposed: ProposedPlan, facts: BlastRadius):
 
 
 def test_an_instance_the_key_created_is_approved():
-    result = verify(plan(action(ActionType.TERMINATE_INSTANCE, LAUNCHED)), radius(created(LAUNCHED)))
+    result = verify(
+        plan(action(ActionType.TERMINATE_INSTANCE, LAUNCHED)), radius(created(LAUNCHED))
+    )
 
     assert [item.action.target for item in result.approved] == [LAUNCHED]
     assert result.rejected == []
@@ -209,6 +211,33 @@ def test_a_duplicated_action_is_only_approved_once():
     assert result.rejected[0].reason is RejectionReason.DUPLICATE_ACTION
 
 
+def test_the_same_instance_asked_for_with_and_without_a_region_is_still_one_machine():
+    result = verify(
+        plan(
+            action(ActionType.TERMINATE_INSTANCE, LAUNCHED, region=None),
+            action(ActionType.TERMINATE_INSTANCE, LAUNCHED, region="ap-south-1"),
+        ),
+        radius(created(LAUNCHED)),
+    )
+
+    assert len(result.approved) == 1
+    assert result.rejected[0].reason is RejectionReason.DUPLICATE_ACTION
+
+
+def test_an_action_type_with_no_verification_branch_fails_closed():
+    """Adding to the allow list without writing its provenance check must reject, not allow."""
+    from verifier import verify as verify_module
+
+    result = verify_module.verify_action(
+        ProposedAction(action_type="quarantine_vpc", target=LAUNCHED, region="ap-south-1"),
+        radius(created(LAUNCHED)),
+        access_key_id=KEY,
+        repository=REPOSITORY,
+    )
+
+    assert result[1] is RejectionReason.UNKNOWN_ACTION_TYPE
+
+
 def test_the_good_actions_in_a_mixed_plan_still_get_through():
     result = verify(
         plan(
@@ -225,7 +254,9 @@ def test_the_good_actions_in_a_mixed_plan_still_get_through():
 
 def test_every_approved_action_carries_the_evidence_behind_it():
     """The console shows why an action was allowed, sourced from CloudTrail, not the model."""
-    result = verify(plan(action(ActionType.TERMINATE_INSTANCE, LAUNCHED)), radius(created(LAUNCHED)))
+    result = verify(
+        plan(action(ActionType.TERMINATE_INSTANCE, LAUNCHED)), radius(created(LAUNCHED))
+    )
 
     (approved,) = result.approved
     assert approved.evidence is not None

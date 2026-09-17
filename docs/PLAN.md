@@ -65,11 +65,18 @@ Build the thing we are defending against first. Everything downstream needs real
 
 ## Phase 4 — Verifier (2 h, Fri 18) — the most important module
 
-- [ ] `verifier/`: pure functions, no AWS calls, no LLM. Input: proposed plan + blast radius facts. Output: approved actions, rejected actions with reasons
-- [ ] Rejects any resource not created by the leaked key
-- [ ] Rejects any action type not in the allow list
-- [ ] Tests for both paths, including a plan that tries to touch a pre-existing instance
-- **Proof:** a rejection test that fails loudly if the verifier ever lets an unowned resource through
+- [x] `verifier/`: pure functions, no AWS calls, no LLM. Input: proposed plan + blast radius facts. Output: approved actions, rejected actions with reasons
+- [x] Rejects any resource not created by the leaked key
+- [x] Rejects any action type not in the allow list, and fails closed for an allow-listed type
+      with no provenance check written for it
+- [x] Tests for both paths, including a plan that tries to touch a pre-existing instance
+- [x] Purity is enforced by a test that parses the module and fails on a boto3, strands or
+      HTTP import, rather than by a comment asking nicely
+- [x] The honest answer to "what could still get past it" is written down in
+      `docs/VERIFIER-LIMITS.md`. The short version: omission is invisible, and the model can
+      still argue with the human even though it cannot argue with the verifier
+- **Proof:** 24 verifier tests, written and failing before the module existed (`2fed8ce`),
+  now passing as part of 135
 - **Commit:** `test: verifier refuses actions the leaked key did not create`
 
 Use the ECC `tdd-workflow` skill here. Write the failing test first.
