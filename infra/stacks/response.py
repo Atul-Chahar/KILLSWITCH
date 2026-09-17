@@ -17,6 +17,8 @@ from aws_cdk import aws_stepfunctions_tasks as tasks
 from aws_cdk import aws_verifiedpermissions as avp
 from constructs import Construct
 
+from narrate.narrator import NarratorMode
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CEDAR_POLICY_PATH = REPO_ROOT / "authorize/policies/containment.cedar"
 LAMBDA_TIMEOUT = Duration.seconds(60)
@@ -68,6 +70,14 @@ class ResponseStack(Stack):
         **kwargs: object,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        # Refuse at synth rather than deploying a workflow that is certain to fail at the
+        # Narrate step. The rehearsal narrator is not a model and needs no model id.
+        if narrator_mode != NarratorMode.REHEARSAL.value and not bedrock_model_id:
+            raise ValueError(
+                "BEDROCK_MODEL_ID must be set to deploy the response workflow, or set "
+                f"NARRATOR_MODE={NarratorMode.REHEARSAL.value} to use the fixed narrator"
+            )
 
         policy_store = avp.CfnPolicyStore(
             self,

@@ -96,11 +96,13 @@ BEDROCK_MODEL_ID=<the model id you enabled> \
 npx aws-cdk@2 deploy KillswitchResponse KillswitchConsoleApi
 ```
 
-Enable that model in Bedrock first, in `$AWS_REGION`, under Model access. The narrator
-Lambda is granted `bedrock:InvokeModel` on `*` and nothing else, so an un-enabled model
-fails the Narrate step with an access error rather than falling back to another model.
+`BEDROCK_MODEL_ID` is not optional: the stack refuses to synthesize without it rather than
+deploying a workflow that is certain to fail at the Narrate step. Enable that model in
+Bedrock first, in `$AWS_REGION`, under Model access. The narrator Lambda is granted
+`bedrock:InvokeModel` and nothing else, so an un-enabled model fails the Narrate step with
+an access error rather than falling back to another model.
 
-To rehearse without Bedrock, redeploy with `NARRATOR_MODE=rehearsal`. That narrator writes
+To rehearse without Bedrock, deploy with `NARRATOR_MODE=rehearsal` and no model id. That narrator writes
 a fixed plan which always includes one instance the leaked key never created, so the
 verifier strikes it out on camera every time. The console labels that prose
 "Rehearsal narrator, not a model and not evidence", so it can never be shown as a model's

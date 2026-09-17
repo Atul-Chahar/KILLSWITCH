@@ -10,6 +10,7 @@ from aws_cdk.assertions import Template
 
 from infra.stacks.detection import DetectionStack
 from infra.stacks.response import ResponseStack
+from narrate.narrator import NarratorMode
 
 DEMO_REGIONS = ["ap-south-1", "us-east-1"]
 DESTRUCTIVE_ACTIONS = {"ec2:TerminateInstances", "iam:UpdateAccessKey"}
@@ -30,6 +31,7 @@ def template(tmp_path_factory) -> Template:
         lambda_code_path=str(code_path),
         incidents_table=detection.incidents,
         demo_regions=DEMO_REGIONS,
+        bedrock_model_id="test.model.v1",
         env=env,
     )
     return Template.from_stack(response)
@@ -214,3 +216,43 @@ def test_the_human_sees_the_summary_the_narrator_wrote(template: Template):
 
     assert "$.summary" in definition
     assert "$.narrator" in definition
+
+
+def test_deploying_without_a_model_id_fails_at_synth_not_mid_incident(tmp_path):
+    """A stack that deploys into a guaranteed runtime failure is worse than one that refuses."""
+    (tmp_path / "workflow").mkdir()
+    (tmp_path / "workflow" / "tasks.py").write_text("# stand-in asset for synth\n")
+    app = cdk.App()
+    env = cdk.Environment(account="000000000000", region="ap-south-1")
+    detection = DetectionStack(app, "NoModel", lambda_code_path=str(tmp_path), env=env)
+
+    with pytest.raises(ValueError, match="BEDROCK_MODEL_ID"):
+        ResponseStack(
+            app,
+            "NoModelResponse",
+            lambda_code_path=str(tmp_path),
+            incidents_table=detection.incidents,
+            demo_regions=DEMO_REGIONS,
+            env=env,
+        )
+
+
+def test_the_rehearsal_narrator_needs_no_model_id(tmp_path):
+    """Rehearsal exists for the days there is no Bedrock. It must not demand one."""
+    (tmp_path / "workflow").mkdir()
+    (tmp_path / "workflow" / "tasks.py").write_text("# stand-in asset for synth\n")
+    app = cdk.App()
+    env = cdk.Environment(account="000000000000", region="ap-south-1")
+    detection = DetectionStack(app, "Rehearsing", lambda_code_path=str(tmp_path), env=env)
+
+    stack = ResponseStack(
+        app,
+        "RehearsingResponse",
+        lambda_code_path=str(tmp_path),
+        incidents_table=detection.incidents,
+        demo_regions=DEMO_REGIONS,
+        narrator_mode=NarratorMode.REHEARSAL.value,
+        env=env,
+    )
+
+    assert Template.from_stack(stack).find_resources("AWS::StepFunctions::StateMachine")

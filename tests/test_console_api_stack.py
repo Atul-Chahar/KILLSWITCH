@@ -26,6 +26,7 @@ def template(tmp_path_factory) -> Template:
         lambda_code_path=str(code_path),
         incidents_table=detection.incidents,
         demo_regions=["ap-south-1", "us-east-1"],
+        bedrock_model_id="test.model.v1",
         env=env,
     )
     console = ConsoleApiStack(
