@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(aws ec2 terminate-instances:*)",
+      "Bash(aws iam delete-*:*)",
+      "Bash(aws iam update-access-key:*)",
+      "Bash(aws s3 rb:*)",
+      "Bash(aws cloudformation delete-stack:*)",
+      "Bash(cdk destroy:*)",
+      "Bash(git push --force:*)",
+      "Bash(git rebase:*)",
+      "Bash(git commit --amend:*)",
+      "Bash(git filter-branch:*)",
+      "Read(./.env)"
+    ],
+    "ask": [
+      "Bash(aws *)",
+      "Bash(cdk deploy:*)",
+      "Bash(gh *)",
+      "Bash(git push:*)"
+    ]
+  }
+}

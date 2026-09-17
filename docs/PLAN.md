@@ -1,0 +1,105 @@
+# KILLSWITCH build plan
+
+Rule: finish a phase, prove it, commit, then start the next. Never tick a box for something that has not run.
+
+Time budget is in hours of actual work, not wall clock. The deadline is Sunday 20 Sep; aim to submit Saturday night.
+
+---
+
+## Phase 0 — Ground rules and repo (1 h, Thu 17)
+
+- [ ] `git init`, first commit today, public repo created
+- [ ] `CLAUDE.md`, `docs/`, `.gitignore`, `.env.example`, `scripts/check_secrets.sh` in place
+- [ ] Dedicated demo AWS account created, budget alarm set at a low amount
+- [ ] `docs/AI-TOOLS.md` and `docs/CREDITS.md` started
+- **Proof:** `scripts/check_secrets.sh` runs clean, repo is public, first commit timestamped 17 Sep
+
+## Phase 1 — The attack, reproducible (2 h, Thu 17)
+
+Build the thing we are defending against first. Everything downstream needs real CloudTrail events to read.
+
+- [ ] CDK stack `DemoTargetStack`: an IAM user `demo-leaky-user` whose policy only allows `ec2:RunInstances` with a condition limiting instance type to `t3.micro`, in two regions
+- [ ] `scripts/attacker.py`: uses the demo key to launch instances in both regions and tag them, printing a timeline
+- [ ] Confirm the events land in CloudTrail and can be read back by access key id
+- **Proof:** `python scripts/attacker.py` launches instances, `python scripts/lookup.py <AKID>` prints them back from CloudTrail
+- **Commit:** `feat: reproducible demo attack and CloudTrail readback`
+
+## Phase 2 — Detection (2 h, Thu 17 evening)
+
+- [ ] Lambda `detect`: receives a GitHub push webhook, scans the diff for AWS key patterns, verifies the signature header
+- [ ] EventBridge rule for the AWS quarantine policy attachment event as the second trigger
+- [ ] Both triggers write the same incident record to DynamoDB, idempotent on access key id
+- [ ] Unit tests: real key pattern found, AWS's documented example key `AKIAIOSFODNN7EXAMPLE` ignored, no duplicate incident on repeat delivery
+- **Proof:** pytest green, a push to the private demo repo creates exactly one incident row
+- **Commit:** `feat: two triggers, one idempotent incident record`
+
+## Phase 3 — Blast radius (2 h, Fri 18)
+
+- [ ] `investigate/` module: CloudTrail `LookupEvents` by access key id across the demo regions, collecting resource id, event name, region, time, source IP
+- [ ] Output is a typed object, not free text
+- [ ] Unit tests against recorded CloudTrail fixtures (save real responses to `tests/fixtures/`, scrub account ids)
+- **Proof:** given the attack from phase 1, the module returns exactly the instances the attacker launched
+- **Commit:** `feat: blast radius from CloudTrail evidence`
+
+## Phase 4 — Verifier (2 h, Fri 18) — the most important module
+
+- [ ] `verifier/`: pure functions, no AWS calls, no LLM. Input: proposed plan + blast radius facts. Output: approved actions, rejected actions with reasons
+- [ ] Rejects any resource not created by the leaked key
+- [ ] Rejects any action type not in the allow list
+- [ ] Tests for both paths, including a plan that tries to touch a pre-existing instance
+- **Proof:** a rejection test that fails loudly if the verifier ever lets an unowned resource through
+- **Commit:** `test: verifier refuses actions the leaked key did not create`
+
+Use the ECC `tdd-workflow` skill here. Write the failing test first.
+
+## Phase 5 — Approval and containment (3 h, Fri 18)
+
+- [ ] Step Functions state machine wiring phases 2 to 7
+- [ ] Approval step uses `waitForTaskToken`; token stored on the incident record
+- [ ] Amazon Verified Permissions policy: reads auto, tagging auto, destructive requires human
+- [ ] `containment/`: deactivate key, terminate instances, open GitHub PR removing the secret. Each function refuses to run without a valid approval token
+- [ ] Post-action verification: key status is `Inactive`, instances are `shutting-down` or `terminated`, PR url recorded
+- [ ] Audit rows written for every decision, including rejections and denials
+- **Proof:** full run in the demo account, with one action denied by the human and correctly left alone
+- **Commit:** `feat: human-gated containment with post-action verification`
+
+## Phase 6 — The console (3 h, Sat 19, in person)
+
+This screen is the Best UI entry. Treat it as a product, not a form.
+
+- [ ] React + Vite + TypeScript, Cognito login, Amplify Hosting
+- [ ] Incident view: timeline (leak, first attacker call, instances launched, detection), blast radius table, proposed plan with verifier decisions visible, approve or deny per action
+- [ ] Live status after approval, money-saved estimate, audit trail
+- [ ] Works on a phone, since the video shows approval from a phone
+- **Proof:** live URL, fresh browser session, full flow
+- **Commit:** `feat: operator console for approval and audit`
+
+## Phase 7 — The narrator agent (2 h, Sat 19)
+
+- [ ] Strands agent on Bedrock: takes the blast radius, writes the incident summary and a proposed plan as strict JSON
+- [ ] Schema validation on the output; invalid output fails the step rather than being patched up
+- [ ] The plan always passes through the verifier before any human sees an approve button
+- **Proof:** a run where the model proposes an unowned resource and the verifier strikes it, visible in the console
+- **Commit:** `feat: model proposes, verifier disposes`
+
+## Phase 8 — Proof, docs, video (4 h, Sat 19 evening to Sun 20)
+
+- [ ] README in the winner shape: one-line pitch, diagram, why it matters, safety model, AWS services table, quickstart, limitations
+- [ ] `evidence/`: screenshots, a saved Step Functions execution graph, test output
+- [ ] Blog post on AWS Builder Center
+- [ ] `docs/AI-TOOLS.md`, `docs/CREDITS.md` final
+- [ ] Record the 3-minute video per `docs/DEMO.md`, in one clean take after two rehearsals
+- [ ] `/code-review` and `security-reviewer` pass, then freeze
+- [ ] Submit
+- **Commit:** `docs: judge-facing README, evidence and limitations`
+
+---
+
+## Cut list (if time runs out, drop in this order)
+
+1. Verified Permissions, replaced by a hardcoded policy table (keep the tiering visible in the UI)
+2. The GitHub PR action, keep key deactivation and instance termination
+3. The second region in the attack demo
+4. The money-saved estimate
+
+Never cut: the verifier, the approval gate, the denial path in the video, tests on the verifier.
