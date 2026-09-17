@@ -169,6 +169,9 @@ This screen is the Best UI entry. Treat it as a product, not a form.
       phase 0 — `_pydantic_core.cpython-312-darwin.so` would have failed to import on Lambda
       on the first deploy. The asset is now pinned to `x86_64-manylinux2014` and the target
       refuses to finish if a host-native binary is in it
+- [x] `tests/test_workflow_end_to_end.py`: the whole chain against in-memory AWS, written
+      during the review pass because every other test covered one module and nothing covered
+      the seams. Mutation-checked — deleting the approval guard fails three of its eight
 - [ ] `/code-review` pass, then freeze
 - [ ] Submit — **operator**
 - **Commit:** `docs: judge-facing README, evidence and limitations`

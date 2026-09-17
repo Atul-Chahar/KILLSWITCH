@@ -123,7 +123,7 @@ step in [docs/RUNBOOK.md](docs/RUNBOOK.md).
 ## Tests
 
 ```bash
-make test           # 246 Python tests
+make test           # 256 Python tests
 make check          # the full gate, including the console
 ```
 
@@ -133,6 +133,7 @@ The tests worth looking at:
 - `tests/test_containment.py` — every destructive function refusing to act without a scoped approval token, and recording the refusal.
 - `tests/test_narrate.py` — the narrator's schema, the one-turn decision, and the rehearsal plan running end to end into the verifier, which strikes exactly one action.
 - `tests/test_response_stack.py` — the workflow's shape as a safety property, asserted on the synthesized template.
+- `tests/test_workflow_end_to_end.py` — the whole chain, narrate to confirm, against in-memory AWS. An approved action runs, a denied one leaves its target untouched, and the execution ends unconfirmed because that instance is still running.
 
 Saved output and console screenshots are in [evidence/](evidence/).
 
