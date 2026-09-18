@@ -1,47 +1,48 @@
 # KILLSWITCH test run
-# 2026-09-18T11:38:36Z, Python 3.12.13.
+# 2026-09-18T21:54:17Z, Python 3.12.13.
 # Every AWS client in these tests is an in-memory fake, and every Strands agent is a stub.
 # Nothing in this run called a real AWS service or a real model.
 
 ============================= test session starts ==============================
 testpaths: tests
-collected 260 items
+collected 293 items
 
-tests/test_approval_api.py ...........                                   [  4%]
-tests/test_attacker.py ........                                          [  7%]
-tests/test_authorize.py ................                                 [ 13%]
-tests/test_blast_radius.py ..........                                    [ 17%]
-tests/test_capture_fixture.py ........                                   [ 20%]
-tests/test_check_secrets.py ........                                     [ 23%]
-tests/test_console_api_stack.py ....                                     [ 25%]
-tests/test_containment.py ..................                             [ 31%]
-tests/test_demo_target_stack.py .........                                [ 35%]
-tests/test_detect_handler.py ...........                                 [ 39%]
-tests/test_detect_patterns.py ........                                   [ 42%]
-tests/test_detect_webhook.py .......                                     [ 45%]
-tests/test_detection_stack.py .........                                  [ 48%]
-tests/test_end_state.py ..........                                       [ 52%]
-tests/test_guards.py ......                                              [ 55%]
-tests/test_identify.py .....                                             [ 56%]
-tests/test_incidents.py ........                                         [ 60%]
-tests/test_layout.py ..........                                          [ 63%]
-tests/test_lookup.py .....                                               [ 65%]
-tests/test_narrate.py ..................................                 [ 78%]
-tests/test_response_stack.py ....................                        [ 86%]
-tests/test_verifier.py .......................                           [ 95%]
-tests/test_workflow_end_to_end.py ............                           [100%]
+tests/test_approval_api.py ...........                                   [  3%]
+tests/test_attacker.py ........                                          [  6%]
+tests/test_authorize.py ................                                 [ 11%]
+tests/test_blast_radius.py ..........                                    [ 15%]
+tests/test_capture_fixture.py ........                                   [ 18%]
+tests/test_check_secrets.py ........                                     [ 20%]
+tests/test_console_api_stack.py ....                                     [ 22%]
+tests/test_containment.py ......................                         [ 29%]
+tests/test_demo_target_stack.py .........                                [ 32%]
+tests/test_detect_handler.py ...........                                 [ 36%]
+tests/test_detect_patterns.py ........                                   [ 39%]
+tests/test_detect_webhook.py .......                                     [ 41%]
+tests/test_detection_stack.py ..........                                 [ 45%]
+tests/test_end_state.py ..............                                   [ 49%]
+tests/test_guards.py ......                                              [ 51%]
+tests/test_identify.py .....                                             [ 53%]
+tests/test_incidents.py ........                                         [ 56%]
+tests/test_layout.py ..........                                          [ 59%]
+tests/test_lookup.py .....                                               [ 61%]
+tests/test_narrate.py ..................................                 [ 73%]
+tests/test_response_stack.py .............................               [ 82%]
+tests/test_start_workflow.py .........                                   [ 86%]
+tests/test_verifier.py ........................                          [ 94%]
+tests/test_workflow_end_to_end.py .................                      [100%]
 
-============================= 260 passed in 3.67s ==============================
+============================= 293 passed in 9.03s ==============================
 
 # console
 
  RUN  v2.1.9 <repo>/console
 
- ✓ src/stages.test.ts (7 tests) 2ms
+ ✓ src/stages.test.ts (9 tests) 3ms
  ✓ src/cost.test.ts (7 tests) 15ms
 
  Test Files  2 passed (2)
-      Tests  14 passed (14)
-   Start at  17:08:41
-   Duration  224ms (transform 41ms, setup 0ms, collect 50ms, tests 17ms, environment 0ms, prepare 108ms)
+      Tests  16 passed (16)
+   Start at  03:24:27
+   Duration  272ms (transform 55ms, setup 0ms, collect 65ms, tests 18ms, environment 0ms, prepare 177ms)
 

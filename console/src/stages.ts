@@ -55,6 +55,7 @@ const SPECS: StageSpec[] = [
     done: (incident) =>
       incident.status === "containing" ||
       incident.status === "contained" ||
+      incident.status === "declined" ||
       incident.end_state !== null,
   },
   {
@@ -87,6 +88,9 @@ function noteFor(spec: StageSpec, incident: Incident, undecided: number): string
   if (spec.key === "confirm") {
     const endState = incident.end_state;
     if (endState && endState.targets.some((target) => !target.confirmed)) return "not confirmed";
+  }
+  if (spec.key === "contain" && incident.status === "declined") {
+    return "declined by the operator";
   }
   return spec.note;
 }

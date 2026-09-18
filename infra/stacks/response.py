@@ -12,18 +12,28 @@ from aws_cdk import CfnOutput, Duration, Stack
 from aws_cdk import aws_dynamodb as dynamodb
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_lambda_event_sources as lambda_events
 from aws_cdk import aws_stepfunctions as sfn
 from aws_cdk import aws_stepfunctions_tasks as tasks
 from aws_cdk import aws_verifiedpermissions as avp
 from constructs import Construct
 
 from narrate.narrator import NarratorMode
+from shared.models import IncidentStatus
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CEDAR_POLICY_PATH = REPO_ROOT / "authorize/policies/containment.cedar"
 LAMBDA_TIMEOUT = Duration.seconds(60)
 # A human has an hour to answer. On expiry the execution fails; it never proceeds alone.
 APPROVAL_TIMEOUT = Duration.hours(1)
+# How long to wait before asking CloudTrail again. workflow.tasks caps the attempts.
+EVIDENCE_POLL_INTERVAL = Duration.seconds(60)
+
+# Nothing here configures retries. CDK gives every LambdaInvoke a default retry policy
+# covering Lambda.ServiceException and its siblings -- failures to *run* our code -- and
+# never States.TaskFailed. That is exactly the policy we want: a NarrationError or a
+# refused approval is an answer, not a blip, and asking three times would not change it.
+# tests/test_response_stack.py asserts that property rather than trusting the default.
 
 CEDAR_ACTIONS = (
     "read_evidence",
@@ -164,24 +174,56 @@ class ResponseStack(Stack):
         )
         # The only principal in the system that may destroy anything. Its code refuses to
         # act without an approval token, and this is the matching grant.
+        #
+        # Two statements rather than one, because the two actions can be narrowed in
+        # different ways and a single wildcard statement narrowed neither. EC2 is regional
+        # so it is pinned to the regions the demo runs in; IAM is global but access-key
+        # calls are authorised against the owning user, so root is out of reach. Neither
+        # is as tight as a tag condition would be -- attacker-created instances carry no
+        # tag of ours, so there is nothing of ours to match on.
         contain.add_to_role_policy(
             iam.PolicyStatement(
-                sid="ContainWhatTheHumanApproved",
-                actions=["ec2:TerminateInstances", "iam:UpdateAccessKey"],
+                sid="TerminateOnlyInTheRegionsWeSearch",
+                actions=["ec2:TerminateInstances"],
                 resources=["*"],
+                conditions={"StringEquals": {"aws:RequestedRegion": demo_regions}},
+            )
+        )
+        contain.add_to_role_policy(
+            iam.PolicyStatement(
+                sid="ContainTheLeakedIdentity",
+                actions=["iam:UpdateAccessKey", "iam:PutUserPolicy", "iam:ListAccessKeys"],
+                resources=[f"arn:aws:iam::{self.account}:user/*"],
             )
         )
         confirm.add_to_role_policy(
             iam.PolicyStatement(
                 sid="ConfirmTheEndState",
-                actions=["ec2:DescribeInstances", "iam:ListAccessKeys"],
+                # GetUserPolicy is how Confirm checks the session-revocation policy is
+                # really attached. Without it "the key is Inactive" would be the whole of
+                # our containment claim, and that claim leaves live sessions untouched.
+                actions=["ec2:DescribeInstances", "iam:ListAccessKeys", "iam:GetUserPolicy"],
                 resources=["*"],
             )
         )
 
+        def invoke(state_id: str, function: lambda_.Function) -> tasks.LambdaInvoke:
+            return tasks.LambdaInvoke(
+                self, state_id, lambda_function=function, payload_response_only=True
+            )
+
         outcome = (
-            sfn.Choice(self, "WasItConfirmed")
-            .when(sfn.Condition.boolean_equals("$.confirmed", True), sfn.Succeed(self, "Contained"))
+            sfn.Choice(self, "HowDidItEnd")
+            .when(
+                sfn.Condition.string_equals("$.status", IncidentStatus.CONTAINED.value),
+                sfn.Succeed(self, "Contained"),
+            )
+            # The operator denied every action. Nothing was destroyed and nothing broke,
+            # so this ends successfully and says which of the two happened.
+            .when(
+                sfn.Condition.string_equals("$.status", IncidentStatus.DECLINED.value),
+                sfn.Succeed(self, "DeclinedByOperator"),
+            )
             # An unconfirmed end state is a failure. It is never rounded up to success.
             .otherwise(
                 sfn.Fail(
@@ -193,59 +235,55 @@ class ResponseStack(Stack):
             )
         )
 
-        definition = (
-            tasks.LambdaInvoke(
-                self, "Investigate", lambda_function=investigate, payload_response_only=True
-            )
-            .next(
-                tasks.LambdaInvoke(
-                    self, "Narrate", lambda_function=narrate, payload_response_only=True
-                )
-            )
-            .next(
-                tasks.LambdaInvoke(
-                    self, "Verify", lambda_function=verify, payload_response_only=True
-                )
-            )
-            .next(
-                tasks.LambdaInvoke(
-                    self, "Authorize", lambda_function=authorize, payload_response_only=True
-                )
-            )
-            .next(
-                tasks.LambdaInvoke(
-                    self,
-                    "WaitForHumanApproval",
-                    lambda_function=request_approval,
-                    integration_pattern=sfn.IntegrationPattern.WAIT_FOR_TASK_TOKEN,
-                    task_timeout=sfn.Timeout.duration(APPROVAL_TIMEOUT),
-                    payload=sfn.TaskInput.from_object(
-                        {
-                            "incident_id": sfn.JsonPath.string_at("$.incident_id"),
-                            "blast_radius": sfn.JsonPath.object_at("$.blast_radius"),
-                            "verification": sfn.JsonPath.object_at("$.verification"),
-                            "tiers": sfn.JsonPath.object_at("$.tiers"),
-                            # The console reads DynamoDB, not the execution state, so the
-                            # narrator's prose and its author travel with the token.
-                            "summary": sfn.JsonPath.string_at("$.summary"),
-                            "narrator": sfn.JsonPath.string_at("$.narrator"),
-                            "task_token": sfn.JsonPath.task_token,
-                        }
-                    ),
-                    result_path="$.approval",
-                )
-            )
-            .next(
-                tasks.LambdaInvoke(
-                    self, "Contain", lambda_function=contain, payload_response_only=True
-                )
-            )
-            .next(
-                tasks.LambdaInvoke(
-                    self, "ConfirmEndState", lambda_function=confirm, payload_response_only=True
-                )
-            )
+        # Deliberately not retried: this task mints the approval token, so re-invoking it
+        # would issue a second one and orphan whatever the operator was already looking at.
+        wait_for_human = tasks.LambdaInvoke(
+            self,
+            "WaitForHumanApproval",
+            lambda_function=request_approval,
+            integration_pattern=sfn.IntegrationPattern.WAIT_FOR_TASK_TOKEN,
+            task_timeout=sfn.Timeout.duration(APPROVAL_TIMEOUT),
+            payload=sfn.TaskInput.from_object(
+                {
+                    "incident_id": sfn.JsonPath.string_at("$.incident_id"),
+                    "blast_radius": sfn.JsonPath.object_at("$.blast_radius"),
+                    "verification": sfn.JsonPath.object_at("$.verification"),
+                    "tiers": sfn.JsonPath.object_at("$.tiers"),
+                    # The console reads DynamoDB, not the execution state, so the
+                    # narrator's prose and its author travel with the token.
+                    "summary": sfn.JsonPath.string_at("$.summary"),
+                    "narrator": sfn.JsonPath.string_at("$.narrator"),
+                    "task_token": sfn.JsonPath.task_token,
+                }
+            ),
+            result_path="$.approval",
+        )
+
+        respond = (
+            invoke("Narrate", narrate)
+            .next(invoke("Verify", verify))
+            .next(invoke("Authorize", authorize))
+            .next(wait_for_human)
+            .next(invoke("Contain", contain))
+            .next(invoke("ConfirmEndState", confirm))
             .next(outcome)
+        )
+
+        # Investigate is a poll, not a single read. CloudTrail delivers minutes after the
+        # API call and KILLSWITCH is looking seconds after the push, so a first lookup
+        # that finds nothing is the expected case rather than a clean incident.
+        look_for_evidence = invoke("Investigate", investigate)
+        wait_for_evidence = sfn.Wait(
+            self,
+            "WaitForEvidence",
+            time=sfn.WaitTime.duration(EVIDENCE_POLL_INTERVAL),
+        )
+        wait_for_evidence.next(look_for_evidence)
+
+        definition = look_for_evidence.next(
+            sfn.Choice(self, "HasTheEvidenceLanded")
+            .when(sfn.Condition.boolean_equals("$.evidence_settled", True), respond)
+            .otherwise(wait_for_evidence)
         )
 
         self.state_machine = sfn.StateMachine(
@@ -254,6 +292,27 @@ class ResponseStack(Stack):
             definition_body=sfn.DefinitionBody.from_chainable(definition),
             state_machine_type=sfn.StateMachineType.STANDARD,
             timeout=Duration.hours(2),
+        )
+
+        # Nothing started this workflow before. The detection Lambdas write an incident
+        # and stop; this is the wire between that write and the response.
+        start_workflow = lambda_.Function(
+            self,
+            "StartWorkflowFunction",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="workflow.start.lambda_handler",
+            code=code,
+            timeout=LAMBDA_TIMEOUT,
+            environment={"STATE_MACHINE_ARN": self.state_machine.state_machine_arn},
+        )
+        self.state_machine.grant_start_execution(start_workflow)
+        start_workflow.add_event_source(
+            lambda_events.DynamoEventSource(
+                incidents_table,
+                starting_position=lambda_.StartingPosition.LATEST,
+                retry_attempts=3,
+                bisect_batch_on_error=True,
+            )
         )
 
         CfnOutput(self, "StateMachineArn", value=self.state_machine.state_machine_arn)

@@ -20,6 +20,12 @@ class IncidentStatus(StrEnum):
     AWAITING_APPROVAL = "awaiting_approval"
     CONTAINING = "containing"
     CONTAINED = "contained"
+    # The operator withheld at least one action, so containment is deliberately
+    # incomplete. Everything that did run was confirmed. This is deliberately neither
+    # CONTAINED -- an attacker resource may still be running because a human said so --
+    # nor FAILED, because nothing broke and treating a human's decision as a failure
+    # teaches operators to distrust the word.
+    DECLINED = "declined"
     FAILED = "failed"
 
 

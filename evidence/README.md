@@ -4,7 +4,7 @@ What is in here, and — just as importantly — what is not.
 
 | File | What it is | What it proves |
 |---|---|---|
-| `test-output.txt` | A full `pytest` run plus the console's vitest run | 260 Python tests and 14 console tests pass. Every AWS client in them is an in-memory fake and every Strands agent is a stub |
+| `test-output.txt` | A full `pytest` run plus the console's vitest run | 293 Python tests and 16 console tests pass. Every AWS client in them is an in-memory fake and every Strands agent is a stub |
 | `state-machine-definition.json` | The Step Functions definition CDK **synthesizes** | The order of states, that the approval step is `lambda:invoke.waitForTaskToken`, and that an unconfirmed end state goes to `Fail`, not `Succeed` |
 | `landing-page.jpg` | The public page at `/`, running locally | The pitch, the three AWS services named, and the console preview that opens the real thing |
 | `console-incident-fixture-mode.jpg` | The operator console, running locally against the bundled fixture | The incident view: the workflow rail with Approve as the live stage, timeline, blast radius, cost estimate, model prose labelled as untrusted, and the instance with no proposed action highlighted |

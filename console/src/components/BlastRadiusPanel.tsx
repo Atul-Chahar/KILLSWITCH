@@ -1,4 +1,13 @@
-import type { Incident } from "../types";
+import type { Incident, ProblemKind } from "../types";
+
+// Rendered instead of the raw enum, because this panel is where an operator decides
+// whether an empty list means "the key created nothing" or "we could not find out".
+const PROBLEM_TEXT: Record<ProblemKind, string> = {
+  region_lookup_failed: "CloudTrail could not be searched in",
+  unreadable_event: "an event could not be read in",
+  creation_event_without_resource_id: "something was created, with no id recorded, in",
+  evidence_not_yet_available: "CloudTrail had not delivered any events yet for",
+};
 
 // Showing what the plan ignored is the point of this panel. The verifier can only judge
 // actions that were proposed, so a resource with no action against it is invisible to it
@@ -67,7 +76,7 @@ export function BlastRadiusPanel({ incident }: { incident: Incident }) {
           <ul>
             {radius.problems.map((problem, index) => (
               <li key={index}>
-                {problem.kind} in {problem.region}
+                {PROBLEM_TEXT[problem.kind] ?? problem.kind} {problem.region}
                 {problem.aws_error_code ? ` (${problem.aws_error_code})` : ""}
               </li>
             ))}

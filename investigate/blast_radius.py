@@ -33,6 +33,10 @@ class ProblemKind(StrEnum):
     REGION_LOOKUP_FAILED = "region_lookup_failed"
     UNREADABLE_EVENT = "unreadable_event"
     CREATION_EVENT_WITHOUT_RESOURCE_ID = "creation_event_without_resource_id"
+    # CloudTrail takes minutes to deliver an event. A lookup that finds nothing may mean
+    # the key created nothing, or may mean the evidence has not landed yet, and those two
+    # read identically. Recorded so an empty result can never be shown as a clean one.
+    EVIDENCE_NOT_YET_AVAILABLE = "evidence_not_yet_available"
 
 
 class EvidenceProblem(BaseModel):
@@ -114,6 +118,27 @@ def resources_from_record(
         )
         for resource_id in ids
     ], []
+
+
+def mark_evidence_unresolved(radius: BlastRadius) -> BlastRadius:
+    """Record that the search finished without evidence and without proving there is none.
+
+    Called when the workflow has waited as long as it is willing to for CloudTrail and
+    still found nothing. Without this an empty list would satisfy `is_complete`, and the
+    console would present "we looked and the key created nothing" -- a claim the evidence
+    does not support.
+    """
+    return radius.model_copy(
+        update={
+            "problems": [
+                *radius.problems,
+                *(
+                    EvidenceProblem(kind=ProblemKind.EVIDENCE_NOT_YET_AVAILABLE, region=region)
+                    for region in radius.regions_searched
+                ),
+            ]
+        }
+    )
 
 
 def build_blast_radius(

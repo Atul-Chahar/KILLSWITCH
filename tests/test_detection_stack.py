@@ -129,3 +129,14 @@ def test_the_asset_path_must_exist(tmp_path: Path):
             lambda_code_path=str(tmp_path / "not-built-yet"),
             env=cdk.Environment(account="000000000000", region="ap-south-1"),
         )
+
+
+def test_the_incident_table_streams_so_a_new_incident_can_start_the_workflow(template: Template):
+    """Detection writes an incident and stops. The stream is what carries it onwards.
+
+    Without it the response workflow is unreachable: nothing else in the system calls
+    StartExecution.
+    """
+    (table,) = template.find_resources("AWS::DynamoDB::Table").values()
+
+    assert table["Properties"]["StreamSpecification"]["StreamViewType"] == "NEW_IMAGE"

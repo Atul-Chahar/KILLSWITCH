@@ -144,7 +144,14 @@ def verify_plan(
 
         # Keyed on the evidence's region, not the proposed one: the same instance asked
         # for once with a region and once without is still one machine, not two.
-        region = evidence.region if evidence is not None else action.region
+        #
+        # Only instances are region-scoped. A key and a repository are global, so a region
+        # on one of those is noise -- and left in the key it would let the same action be
+        # approved twice by proposing it once with a region and once without.
+        if action.action_type == ActionType.TERMINATE_INSTANCE:
+            region = evidence.region if evidence is not None else action.region
+        else:
+            region = None
         signature = (action.action_type, action.target, region)
         if signature in already_approved:
             result.rejected.append(

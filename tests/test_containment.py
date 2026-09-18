@@ -6,12 +6,19 @@ human having approved exactly this action?
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 import pytest
-from fakes import FakeEc2, FakeIam, FakeTable
+from fakes import FakeEc2, FakeIam, FakeTable, client_error
 
-from containment.actions import deactivate_key, open_pull_request, terminate_instance
+from containment.actions import (
+    SESSION_REVOCATION_POLICY_NAME,
+    deactivate_key,
+    open_pull_request,
+    session_revocation_policy,
+    terminate_instance,
+)
 from containment.guard import NotApproved, require_approval
 from shared.approvals import ApprovalRecord, ApprovalState, AuditStage, action_signature
 from shared.incidents import IncidentStore
@@ -299,3 +306,65 @@ def test_an_approved_pull_request_records_its_url():
 
     assert result.succeeded is True
     assert result.details["pull_request_url"] == "https://example.invalid/pr/1"
+
+
+# --- deactivating a key is not the same as locking the attacker out -------------------
+#
+# UpdateAccessKey stops the key minting new sessions. Credentials it already handed out
+# through sts:GetSessionToken or sts:AssumeRole keep working until they expire, which can
+# be hours. Containment that stops at Inactive leaves the attacker inside.
+
+
+def test_deactivating_a_key_also_revokes_the_sessions_it_already_minted():
+    _table, store, record = opened_store()
+    iam = FakeIam({USER: [{"AccessKeyId": KEY, "Status": "Active"}]})
+    act = action(ActionType.DEACTIVATE_KEY, KEY, region=None)
+    decide(store, act, ApprovalState.APPROVED)
+
+    result = deactivate_key(iam, store, record, act, now=NOW)
+
+    assert result.succeeded
+    document = json.loads(iam.user_policies[(USER, SESSION_REVOCATION_POLICY_NAME)])
+    (statement,) = document["Statement"]
+    assert statement["Effect"] == "Deny"
+    assert statement["Action"] == "*"
+    # Scoped by issue time, so recovering the account later is not blocked by this policy.
+    assert "aws:TokenIssueTime" in statement["Condition"]["DateLessThan"]
+
+
+def test_a_key_that_cannot_have_its_sessions_revoked_is_not_a_success():
+    """Inactive with live sessions is not containment, so it must not be reported as one."""
+    _table, store, record = opened_store()
+    iam = FakeIam(
+        {USER: [{"AccessKeyId": KEY, "Status": "Active"}]},
+        put_user_policy_error=client_error("AccessDenied", "PutUserPolicy"),
+    )
+    act = action(ActionType.DEACTIVATE_KEY, KEY, region=None)
+    decide(store, act, ApprovalState.APPROVED)
+
+    result = deactivate_key(iam, store, record, act, now=NOW)
+
+    assert result.succeeded is False
+    stages = {entry.stage for entry in store.audit_trail(INCIDENT_ID)}
+    assert AuditStage.FAILED in stages
+    assert AuditStage.AFTER not in stages
+
+
+def test_an_already_inactive_key_still_gets_its_sessions_revoked():
+    """A key AWS quarantined first is still a key whose sessions are live."""
+    _table, store, record = opened_store()
+    iam = FakeIam({USER: [{"AccessKeyId": KEY, "Status": "Inactive"}]})
+    act = action(ActionType.DEACTIVATE_KEY, KEY, region=None)
+    decide(store, act, ApprovalState.APPROVED)
+
+    result = deactivate_key(iam, store, record, act, now=NOW)
+
+    assert result.succeeded and result.already_done
+    assert (USER, SESSION_REVOCATION_POLICY_NAME) in iam.user_policies
+
+
+def test_the_revocation_policy_denies_old_credentials_and_not_new_ones():
+    document = json.loads(session_revocation_policy(NOW))
+    (statement,) = document["Statement"]
+
+    assert statement["Condition"]["DateLessThan"]["aws:TokenIssueTime"].startswith("2026-09-18")

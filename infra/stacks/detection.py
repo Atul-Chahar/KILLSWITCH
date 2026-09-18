@@ -49,6 +49,10 @@ class DetectionStack(Stack):
             # under it cannot end up in different places.
             sort_key=dynamodb.Attribute(name=INCIDENT_SORT_KEY, type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            # The stream is how a new incident reaches the response workflow. Only the
+            # conditional write that wins produces an INSERT, so two triggers firing at
+            # once still start exactly one execution.
+            stream=dynamodb.StreamViewType.NEW_IMAGE,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
             ),

@@ -7,6 +7,9 @@ export type IncidentStatus =
   | "awaiting_approval"
   | "containing"
   | "contained"
+  // The operator withheld at least one action. Everything that ran was confirmed, so this
+  // is neither contained nor failed.
+  | "declined"
   | "failed";
 
 export type RejectionReason =
@@ -21,7 +24,8 @@ export type RejectionReason =
 export type ProblemKind =
   | "region_lookup_failed"
   | "unreadable_event"
-  | "creation_event_without_resource_id";
+  | "creation_event_without_resource_id"
+  | "evidence_not_yet_available";
 
 export interface CreatedResource {
   resource_id: string;

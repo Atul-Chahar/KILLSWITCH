@@ -9,7 +9,7 @@ Built for [First Commit](https://www.wemakedevs.org/aws/first-commit) (WeMakeDev
 **Live console:** not deployed yet
 **Demo video (3 min):** not recorded yet
 
-> Read [Limitations](#limitations) before you read anything else. Nothing in this repository has ever run against AWS.
+> Read [Limitations](#limitations) before you read anything else. Nothing in this repository has ever run against AWS, and the list is 21 items long.
 
 ---
 
@@ -129,8 +129,8 @@ step in [docs/RUNBOOK.md](docs/RUNBOOK.md).
 ## Tests
 
 ```bash
-make test           # 260 Python tests
-make check          # the full gate, including the console's 14 tests
+make test           # 293 Python tests
+make check          # the full gate, including the console's 16 tests
 ```
 
 The tests worth looking at:
@@ -139,13 +139,15 @@ The tests worth looking at:
 - `tests/test_containment.py` — every destructive function refusing to act without a scoped approval token, and recording the refusal.
 - `tests/test_narrate.py` — the narrator's schema, the one-turn decision, and the rehearsal plan running end to end into the verifier, which strikes exactly one action.
 - `tests/test_response_stack.py` — the workflow's shape as a safety property, asserted on the synthesized template.
-- `tests/test_workflow_end_to_end.py` — the whole chain, investigate to confirm, against in-memory AWS. An approved action runs, a denied one leaves its target untouched, and the incident ends `failed` on the screen because that instance is still running. This file found three seam bugs the module tests could not see.
+- `tests/test_workflow_end_to_end.py` — the whole chain, investigate to confirm, against in-memory AWS. An approved action runs, a denied one leaves its target untouched and ends the incident `declined` rather than `failed`, and a first CloudTrail lookup that finds nothing sends the workflow back to wait instead of narrating an empty plan. This file found three seam bugs the module tests could not see.
+- `tests/test_start_workflow.py` — the wire between detection and the workflow, which for most of this project's life did not exist. Also the reason a redelivered stream record cannot start a second execution.
 
 Saved output and screenshots of both views are in [evidence/](evidence/).
 
 ## Limitations
 
-This section is the honest one. Judges asked for it; so did we.
+This section is the honest one. Judges asked for it; so did we. It got longer after an
+adversarial review pass, which is the direction it should move in.
 
 **Nothing has ever run against AWS.** No stack is deployed, no key has leaked, no CloudTrail
 event has been read, no Bedrock model has been called, no Step Functions execution has
@@ -153,65 +155,103 @@ started, and the approve button has never released a real task token. Every test
 repository runs against in-memory fakes and stub agents. Read every "it does X" above as
 "the code for X is written and unit-tested".
 
-That matters more than it sounds. The last review pass found three bugs that only exist at
-the seams between modules, and one of them meant a key leaked by a GitHub push could never
-be deactivated at all — the headline action, on the primary path, failing every time. Every
-module test passed throughout. `tests/test_workflow_end_to_end.py` now runs the whole chain
-against fakes, but a chain of fakes is still a chain of fakes.
+That matters more than it sounds. Two review passes have now found bugs that only exist at
+the seams between modules, and the worst one was structural: **nothing started the
+workflow at all.** Detection wrote an incident to DynamoDB and stopped. Every module test
+passed throughout, because every test called the workflow tasks directly. The incident
+table now streams into `workflow/start.py`, and `tests/test_start_workflow.py` and
+`tests/test_response_stack.py` assert the wire exists — but a chain of fakes is still a
+chain of fakes.
 
-Specifically:
+### What we know is wrong, and have not fixed
 
-1. **The CloudTrail fixtures are synthetic.** `tests/fixtures/*.json` were written by hand to
-   the exact `LookupEvents` shape, not captured from AWS. `scripts/capture_fixture.py` exists
-   to replace them with real scrubbed captures after the first demo run, and until then the
-   blast radius has only been tested against evidence we invented. `tests/fixtures/README.md`
-   says the same thing next to the files.
-2. **The GitHub PR opener is not built.** `containment/open_pull_request` works and is tested,
-   but the function injected into it raises `NotImplementedError`, so the action records a
-   failure rather than returning a URL nobody opened. This is cut-list item 2 in
-   `docs/PLAN.md`. The narrator is told not to propose it.
-3. **The second trigger cannot fire for real in this demo.** AWS only quarantines keys it
-   finds in *public* exposure, and safety rule 4 keeps the demo repository private on
-   purpose. `scripts/simulate_quarantine.py` fires the event shape by hand. That is a
-   simulation, done openly, not the real AWS trigger.
-4. **IAM's CloudTrail events only reach EventBridge in us-east-1.** The quarantine rule
-   therefore only fires for real if the detection stack is deployed there, whatever the
-   primary region is set to.
-5. **The verifier cannot detect omission.** A model that proposes nothing passes every check,
-   because an empty plan is valid. The console highlights resources with no proposed action
-   and the schema makes the model state an empty plan rather than omit the field, but neither
-   is a check. The full list of what gets past the verifier is in
-   [docs/VERIFIER-LIMITS.md](docs/VERIFIER-LIMITS.md).
-6. **The narrator gets exactly one turn.** Strands, on Bedrock, hands a schema failure back
-   to the model as a tool error so it can retry. We switch that off, deliberately, so the
-   component we do not trust cannot negotiate with the validator. The cost is that Strands'
-   second-turn nudge for a model that replied in prose is disabled too, so such a reply fails
-   the step. Whether a real model satisfies this schema first time has never been measured.
-7. **The webhook secret is a Lambda environment variable**, not Secrets Manager. It is
-   readable by anyone with `lambda:GetFunctionConfiguration` on the account, and it does not
-   rotate. Fine for a throwaway demo account, wrong for anything else.
-8. **The cost-avoided figure is an estimate at list price**, not a measurement. It is
-   instance count x 720 hours x $0.0112, the on-demand `t3.micro` rate in `ap-south-1`
-   hardcoded at the time of writing, not a live price feed. It is not a bill, and it
-   accounts for nothing else the attacker might have run.
-9. **It only understands `RunInstances`.** `CREATION_EVENTS` in `investigate/blast_radius.py`
-   maps one event to one resource kind. A key used to create IAM users, S3 buckets, Lambda
-   functions or anything else produces an empty blast radius, and KILLSWITCH would report a
-   leak with nothing to contain — which reads exactly like a clean incident.
-10. **The lookup window is three hours across two regions.** Anything the key did outside
-    that never enters the evidence, and the verifier will then reject an action against it as
-    "not in the blast radius": the right answer for the wrong reason.
-11. **There is one approval round and a one-hour timeout.** If nobody answers, the execution
-    fails and nothing is destroyed — the safe direction, but also a dead incident with no
-    retry path.
-12. **It has only ever been tested at demo scale**, which is two instances. Nothing here
-    reasons about a key that launched two hundred.
-13. **The narrator's `bedrock:InvokeModel` grant is on `Resource: "*"`.** The action is the
+1. **CloudTrail is minutes behind, so KILLSWITCH is too.** AWS delivers management events
+   to `LookupEvents` typically within 15 minutes. Detection happens seconds after a push.
+   Investigate is therefore a poll — `Wait` 60s, retry, up to 15 attempts — and the demo's
+   "5 minutes to compromise" framing does **not** mean 5 minutes to containment. It means
+   containment starts when the evidence lands. A first lookup that finds nothing is the
+   expected case, not a clean incident.
+2. **An unresolved search is not proof of a clean one.** When the poll gives up empty, the
+   blast radius records `evidence_not_yet_available` per region rather than returning an
+   empty list, so `evidence_incomplete` reaches the screen. That makes the gap visible. It
+   does not make it go away.
+3. **Role chaining defeats the blast radius entirely.** We look up CloudTrail by one
+   `AccessKeyId`. An attacker who calls `sts:AssumeRole` or `sts:GetSessionToken` first
+   acts under a different key id, and everything they then create is invisible to us. The
+   incident would look clean. This is the single largest evidence gap in the project.
+4. **An attacker who mints new credentials is invisible.** `CREATION_EVENTS` maps
+   `RunInstances` and nothing else, so `CreateAccessKey`, `CreateUser` and
+   `AttachUserPolicy` are never seen. Deactivating the leaked key does not help if the
+   attacker made their own.
+5. **Nothing re-investigates during the approval wait.** The blast radius is built once.
+   An attacker who launches more instances while a human is deciding is never seen, and
+   the verifier would reject an action against them as "not in the blast radius".
+6. **The verifier cannot detect omission.** A model that proposes nothing passes every
+   check, because an empty plan is valid. The console highlights resources with no proposed
+   action and the schema makes the model state an empty plan rather than omit the field,
+   but neither is a check. The full list is in [docs/VERIFIER-LIMITS.md](docs/VERIFIER-LIMITS.md).
+7. **It only understands `RunInstances`.** A key used to create IAM users, S3 buckets,
+   Lambda functions or anything else produces an empty blast radius, and KILLSWITCH would
+   report a leak with nothing to contain — which reads exactly like a clean incident. This
+   is the most dangerous limitation in the project, because its failure mode is silence.
+8. **It has no answer to an Auto Scaling group.** Terminating an instance that something
+   else replaces confirms successfully and changes nothing. We do not look for the thing
+   doing the replacing.
+9. **One approval round, one-hour timeout, one click per action.** If nobody answers, the
+   execution fails and nothing is destroyed — the safe direction, but a dead incident with
+   no retry path. And the console requires a decision per action before it will send, so an
+   incident with two hundred instances is two hundred clicks. Nothing here reasons about
+   that scale; it has only ever been exercised with two.
+10. **Any authenticated operator can approve any incident.** API Gateway enforces a Cognito
+    authorizer on both routes, so the approval endpoint is not open to the internet. But
+    there is no authorization beyond that: no roles, no ownership, no four-eyes rule.
+11. **The audit trail is append-only by convention, not by enforcement.** Rows are separate
+    items so concurrent writers cannot clobber each other, but the containment Lambda holds
+    read-write on the table and DynamoDB has no object lock. Do not read it as tamper-proof.
+12. **The GitHub PR opener is not built.** `containment/open_pull_request` works and is
+    tested, but the function injected into it raises `NotImplementedError`. The end state
+    now reports such an action as `NoPullRequestRecorded` rather than confirming it — a bug
+    the review pass caught, where the one module that exists to refuse unverified success
+    was granting it. This is cut-list item 2 in `docs/PLAN.md`; the narrator is told not to
+    propose it.
+13. **The CloudTrail fixtures are synthetic.** `tests/fixtures/*.json` were written by hand
+    to the exact `LookupEvents` shape, not captured from AWS. `scripts/capture_fixture.py`
+    exists to replace them with real scrubbed captures after the first demo run.
+14. **The second trigger cannot fire for real in this demo.** AWS only quarantines keys it
+    finds in *public* exposure, and safety rule 4 keeps the demo repository private on
+    purpose. `scripts/simulate_quarantine.py` fires the event shape by hand. That is a
+    simulation, done openly, not the real AWS trigger. Relatedly, IAM's CloudTrail events
+    only reach EventBridge in `us-east-1`, so the rule only fires for real if the detection
+    stack is deployed there.
+15. **The narrator gets exactly one turn.** Strands, on Bedrock, hands a schema failure back
+    to the model as a tool error so it can retry. We switch that off, deliberately, so the
+    component we do not trust cannot negotiate with the validator. The cost is that a model
+    replying in prose fails the step. Whether a real model satisfies this schema first time
+    has never been measured.
+16. **The webhook secret is a Lambda environment variable**, not Secrets Manager. It is
+    readable by anyone with `lambda:GetFunctionConfiguration` on the account, and it does
+    not rotate. Fine for a throwaway demo account, wrong for anything else. The scanner
+    itself only matches `AKIA…`: an encoded, split or `ASIA` credential goes straight past.
+17. **The cost-avoided figure is an estimate at list price**, not a measurement. Instance
+    count x 720 hours x $0.0112, hardcoded, not a live price feed. It is not a bill.
+18. **The lookup window is three hours across two regions.** Anything outside it never
+    enters the evidence, and the verifier will then reject an action against it as "not in
+    the blast radius": the right answer for the wrong reason.
+19. **The narrator's `bedrock:InvokeModel` grant is on `Resource: "*"`.** The action is the
     narrowest one Bedrock has and cannot read, write or destroy anything, but the narrator
-    Lambda could invoke any model in the account, not only the one `BEDROCK_MODEL_ID` names.
-    Scoping it means building foundation-model and inference-profile ARNs, and cross-region
-    inference profiles make that easy to get wrong, so it was left wide on purpose. The
-    exposure is spend, not access.
+    Lambda could invoke any model in the account. Scoping it means building foundation-model
+    and inference-profile ARNs, and cross-region inference profiles make that easy to get
+    wrong, so it was left wide on purpose. The exposure is spend, not access.
+20. **Containment is fenced by IAM, but not tightly.** `ec2:TerminateInstances` is
+    conditioned on the two demo regions and the IAM grants are scoped to `user/*`, so the
+    account root is out of reach. Within those bounds it is still `*`: KILLSWITCH could
+    terminate any instance in those regions. A tag condition would be tighter, and is not
+    possible — instances the attacker created carry no tag of ours to match on.
+21. **Session revocation has never run against real IAM.** Deactivating a key does nothing
+    to sessions it already minted, so containment now also attaches a deny-all policy
+    conditioned on `aws:TokenIssueTime`, and confirmation re-reads it. Both are unit-tested
+    against a fake. Neither has been checked against IAM's real behaviour.
+
 
 ## Credits and AI tools
 

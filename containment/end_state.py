@@ -9,16 +9,26 @@ Anything it cannot confirm is reported as unconfirmed. There is no third option.
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import BaseModel, Field
 
+from containment.actions import SESSION_REVOCATION_POLICY_NAME
+from shared.approvals import action_signature
 from shared.models import IncidentRecord
+from verifier.plan import ProposedAction
 from verifier.verify import ActionType, VerifiedAction
 
 INACTIVE = "Inactive"
 TERMINAL_STATES = {"shutting-down", "terminated"}
+
+# IAM is eventually consistent: ListAccessKeys can still report Active for a moment after
+# UpdateAccessKey returned. Re-reading once and calling it unconfirmed would report a
+# working containment as a failure, so the read is retried briefly before we believe it.
+KEY_STATUS_ATTEMPTS = 3
+KEY_STATUS_PAUSE_SECONDS = 2.0
 
 
 class ConfirmedTarget(BaseModel):
@@ -46,6 +56,14 @@ def _key_status(iam_client: Any, user_name: str, access_key_id: str) -> str | No
     return None
 
 
+def _sessions_revoked(iam_client: Any, user_name: str) -> bool:
+    try:
+        iam_client.get_user_policy(UserName=user_name, PolicyName=SESSION_REVOCATION_POLICY_NAME)
+    except (ClientError, BotoCoreError):
+        return False
+    return True
+
+
 def _instance_state(ec2_client: Any, instance_id: str) -> str | None:
     response = ec2_client.describe_instances(InstanceIds=[instance_id])
     for reservation in response.get("Reservations", []):
@@ -56,13 +74,31 @@ def _instance_state(ec2_client: Any, instance_id: str) -> str | None:
 
 
 def _confirm_key(
-    target: ConfirmedTarget, incident: IncidentRecord, iam_client: Any, access_key_id: str
+    target: ConfirmedTarget,
+    incident: IncidentRecord,
+    iam_client: Any,
+    access_key_id: str,
+    *,
+    sleep: Any = time.sleep,
 ) -> None:
     if not incident.key_owner:
         target.aws_error_code = "UnknownKeyOwner"
         return
-    target.observed_state = _key_status(iam_client, incident.key_owner, access_key_id)
-    target.confirmed = target.observed_state == INACTIVE
+    for attempt in range(KEY_STATUS_ATTEMPTS):
+        target.observed_state = _key_status(iam_client, incident.key_owner, access_key_id)
+        if target.observed_state == INACTIVE:
+            break
+        if attempt == KEY_STATUS_ATTEMPTS - 1:
+            return
+        sleep(KEY_STATUS_PAUSE_SECONDS)
+
+    # Inactive alone is not containment: it stops new sessions, not the ones the attacker
+    # already holds. The revocation policy is what denies those, so its absence means the
+    # key is deactivated and the attacker may still be inside.
+    if not _sessions_revoked(iam_client, incident.key_owner):
+        target.aws_error_code = "SessionsNotRevoked"
+        return
+    target.confirmed = True
 
 
 def _confirm_instance(
@@ -77,14 +113,26 @@ def _confirm_instance(
     target.confirmed = target.observed_state in TERMINAL_STATES
 
 
+def action_signature_of(action: ProposedAction) -> str:
+    return action_signature(action.action_type, action.target, action.region)
+
+
 def confirm_end_state(
     incident: IncidentRecord,
     actions: list[VerifiedAction],
     *,
     iam_client: Any,
     ec2_clients: dict[str, Any],
+    containment_details: dict[str, dict[str, str]] | None = None,
+    sleep: Any = time.sleep,
 ) -> EndState:
-    """Check each acted-on target against AWS itself."""
+    """Check each acted-on target against AWS itself.
+
+    `actions` is what containment actually attempted, not everything the verifier
+    approved. An action the operator denied was never run, and re-reading its target
+    would report the incident as unconfirmed because the human did their job.
+    """
+    details = containment_details or {}
     end_state = EndState(incident_id=incident.incident_id)
 
     for verified in actions:
@@ -95,14 +143,19 @@ def confirm_end_state(
 
         try:
             if action.action_type == ActionType.DEACTIVATE_KEY:
-                _confirm_key(target, incident, iam_client, action.target)
+                _confirm_key(target, incident, iam_client, action.target, sleep=sleep)
             elif action.action_type == ActionType.TERMINATE_INSTANCE:
                 _confirm_instance(target, verified, ec2_clients)
             elif action.action_type == ActionType.OPEN_PR:
-                # A pull request is confirmed by the url containment recorded. There is
-                # nothing to re-read from AWS, and pretending otherwise would be theatre.
-                target.confirmed = True
-                target.observed_state = "recorded"
+                # There is nothing to re-read from AWS, so the only evidence a pull
+                # request exists is the url containment recorded. No url means the action
+                # did not happen -- and marking it confirmed anyway would be the one thing
+                # this module exists to prevent.
+                url = details.get(action_signature_of(action), {}).get("pull_request_url")
+                target.observed_state = url or None
+                target.confirmed = bool(url)
+                if not url:
+                    target.aws_error_code = "NoPullRequestRecorded"
         except (ClientError, BotoCoreError) as error:
             code = None
             if isinstance(error, ClientError):

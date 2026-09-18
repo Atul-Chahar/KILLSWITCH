@@ -16,13 +16,20 @@ from authorize.decide import ApprovalTier, approval_tier_for
 from containment.actions import deactivate_key, open_pull_request, terminate_instance
 from containment.end_state import confirm_end_state
 from containment.guard import NotApproved
-from investigate.blast_radius import BlastRadius, build_blast_radius
+from investigate.blast_radius import BlastRadius, build_blast_radius, mark_evidence_unresolved
 from investigate.identify import IdentificationError, owner_of_access_key
 from narrate.narrator import narration_for, narrator_mode
+from shared.approvals import action_signature
 from shared.incidents import IncidentStore
 from shared.models import IncidentStatus
 from verifier.plan import ProposedPlan
 from verifier.verify import ActionType, VerificationResult, verify_plan
+
+# CloudTrail delivers a management event minutes after the API call, and KILLSWITCH is
+# looking seconds after the push. Investigate is therefore a poll, not a single read: the
+# workflow loops back here until evidence appears or the budget runs out. AWS documents
+# delivery as typically within 15 minutes, which is where this budget comes from.
+MAX_EVIDENCE_ATTEMPTS = 15
 
 
 def _store() -> IncidentStore:
@@ -72,7 +79,17 @@ def investigate_task(event: dict[str, Any], _context: Any = None) -> dict[str, A
     if key_owner and key_owner != incident.key_owner:
         store.save_artifacts(incident_id, {"key_owner": key_owner})
 
+    attempt = int(event.get("evidence_attempt", 0)) + 1
     radius = build_blast_radius(boto3.Session(), incident.access_key_id, _demo_regions())
+
+    # Stop when there is something to act on, or when we have waited as long as CloudTrail
+    # is documented to need. Giving up empty-handed is recorded as an unresolved search
+    # rather than an empty one, because "the key created nothing" and "the evidence has
+    # not arrived" look identical and only one of them is safe to believe.
+    settled = bool(radius.resources) or attempt >= MAX_EVIDENCE_ATTEMPTS
+    if settled and not radius.resources:
+        radius = mark_evidence_unresolved(radius)
+
     return {
         "incident_id": incident_id,
         "access_key_id": incident.access_key_id,
@@ -80,6 +97,8 @@ def investigate_task(event: dict[str, Any], _context: Any = None) -> dict[str, A
         "key_owner": key_owner,
         "status": IncidentStatus.INVESTIGATING.value,
         "blast_radius": radius.model_dump(mode="json"),
+        "evidence_attempt": attempt,
+        "evidence_settled": settled,
     }
 
 
@@ -189,8 +208,18 @@ def contain_task(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
                 continue
         except NotApproved as refusal:
             # The human denied this action, or never approved it. That is a normal
-            # outcome, already written to the audit trail, not a workflow failure.
-            results.append({"refused": True, "detail": str(refusal), "succeeded": False})
+            # outcome, already written to the audit trail, not a workflow failure. The
+            # signature travels with it so Confirm knows this target was never touched.
+            results.append(
+                {
+                    "action_signature": action_signature(
+                        action.action_type, action.target, action.region
+                    ),
+                    "refused": True,
+                    "detail": str(refusal),
+                    "succeeded": False,
+                }
+            )
             continue
         results.append(result.model_dump(mode="json"))
 
@@ -206,13 +235,50 @@ def confirm_task(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
         raise RuntimeError(f"no incident {incident_id}")
 
     verification = VerificationResult.model_validate(event["verification"])
+
+    # Only what containment actually ran. Re-reading a target the operator denied would
+    # find it alive and report the incident as unconfirmed -- punishing the human for
+    # using the gate this whole system exists to give them.
+    containment = event.get("containment") or []
+    attempted = {
+        str(result["action_signature"])
+        for result in containment
+        if result.get("action_signature") and not result.get("refused")
+    }
+    details = {
+        str(result["action_signature"]): dict(result.get("details") or {})
+        for result in containment
+        if result.get("action_signature")
+    }
+    acted_on = [
+        verified
+        for verified in verification.approved
+        if action_signature(
+            verified.action.action_type, verified.action.target, verified.action.region
+        )
+        in attempted
+    ]
+
     end_state = confirm_end_state(
         incident,
-        list(verification.approved),
+        acted_on,
         iam_client=boto3.client("iam"),
         ec2_clients=_ec2_clients(_demo_regions()),
+        containment_details=details,
     )
-    status = IncidentStatus.CONTAINED if end_state.all_confirmed else IncidentStatus.FAILED
+
+    refused_any = any(result.get("refused") for result in containment)
+    if acted_on and not end_state.all_confirmed:
+        # Something ran and AWS would not confirm it. The only status that must never be
+        # rounded up.
+        status = IncidentStatus.FAILED
+    elif refused_any or not acted_on:
+        # The operator withheld at least one action, so containment is deliberately
+        # incomplete. Nothing broke, and claiming "contained" with an attacker's instance
+        # still running because a human said no would be the same lie in a nicer word.
+        status = IncidentStatus.DECLINED
+    else:
+        status = IncidentStatus.CONTAINED
     # The console reads DynamoDB, never the execution state, so how this ended has to be
     # written down. An end state nobody can see is the same as no end state.
     store.save_artifacts(
@@ -223,5 +289,5 @@ def confirm_task(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
         **event,
         "end_state": end_state.model_dump(mode="json"),
         "status": status.value,
-        "confirmed": end_state.all_confirmed,
+        "confirmed": status is not IncidentStatus.FAILED,
     }

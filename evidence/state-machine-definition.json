@@ -2,7 +2,7 @@
   "StartAt": "Investigate",
   "States": {
     "Investigate": {
-      "Next": "Narrate",
+      "Next": "HasTheEvidenceLanded",
       "Retry": [
         {
           "ErrorEquals": [
@@ -17,7 +17,23 @@
         }
       ],
       "Type": "Task",
-      "Resource": "<arn resolved at deploy time>"
+      "Resource": "<redacted-arn>"
+    },
+    "WaitForEvidence": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "Investigate"
+    },
+    "HasTheEvidenceLanded": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.evidence_settled",
+          "BooleanEquals": true,
+          "Next": "Narrate"
+        }
+      ],
+      "Default": "WaitForEvidence"
     },
     "Narrate": {
       "Next": "Verify",
@@ -35,7 +51,7 @@
         }
       ],
       "Type": "Task",
-      "Resource": "<arn resolved at deploy time>"
+      "Resource": "<redacted-arn>"
     },
     "Verify": {
       "Next": "Authorize",
@@ -53,7 +69,7 @@
         }
       ],
       "Type": "Task",
-      "Resource": "<arn resolved at deploy time>"
+      "Resource": "<redacted-arn>"
     },
     "Authorize": {
       "Next": "WaitForHumanApproval",
@@ -71,7 +87,7 @@
         }
       ],
       "Type": "Task",
-      "Resource": "<arn resolved at deploy time>"
+      "Resource": "<redacted-arn>"
     },
     "WaitForHumanApproval": {
       "Next": "Contain",
@@ -91,9 +107,9 @@
       "Type": "Task",
       "TimeoutSeconds": 3600,
       "ResultPath": "$.approval",
-      "Resource": "arn:<arn resolved at deploy time>:states:::lambda:invoke.waitForTaskToken",
+      "Resource": "arn:<redacted-arn>:states:::lambda:invoke.waitForTaskToken",
       "Parameters": {
-        "FunctionName": "<arn resolved at deploy time>",
+        "FunctionName": "<redacted-arn>",
         "Payload": {
           "incident_id.$": "$.incident_id",
           "blast_radius.$": "$.blast_radius",
@@ -121,10 +137,10 @@
         }
       ],
       "Type": "Task",
-      "Resource": "<arn resolved at deploy time>"
+      "Resource": "<redacted-arn>"
     },
     "ConfirmEndState": {
-      "Next": "WasItConfirmed",
+      "Next": "HowDidItEnd",
       "Retry": [
         {
           "ErrorEquals": [
@@ -139,15 +155,20 @@
         }
       ],
       "Type": "Task",
-      "Resource": "<arn resolved at deploy time>"
+      "Resource": "<redacted-arn>"
     },
-    "WasItConfirmed": {
+    "HowDidItEnd": {
       "Type": "Choice",
       "Choices": [
         {
-          "Variable": "$.confirmed",
-          "BooleanEquals": true,
+          "Variable": "$.status",
+          "StringEquals": "contained",
           "Next": "Contained"
+        },
+        {
+          "Variable": "$.status",
+          "StringEquals": "declined",
+          "Next": "DeclinedByOperator"
         }
       ],
       "Default": "ContainmentUnconfirmed"
@@ -158,6 +179,9 @@
       "Cause": "AWS did not confirm the expected end state for every action"
     },
     "Contained": {
+      "Type": "Succeed"
+    },
+    "DeclinedByOperator": {
       "Type": "Succeed"
     }
   },

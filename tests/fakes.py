@@ -76,11 +76,37 @@ def _partition_and_prefix(expression: Any) -> tuple[str, str]:
 
 
 class FakeIam:
-    """The IAM calls KILLSWITCH makes: identify a key's owner, list keys, deactivate one."""
+    """The IAM calls KILLSWITCH makes: identify a key's owner, list keys, deactivate one,
+    and attach or read back the policy that revokes the sessions it already minted."""
 
-    def __init__(self, keys_by_user: dict[str, list[dict[str, str]]]) -> None:
+    def __init__(
+        self,
+        keys_by_user: dict[str, list[dict[str, str]]],
+        *,
+        put_user_policy_error: ClientError | None = None,
+    ) -> None:
         self.keys_by_user = keys_by_user
         self.update_calls: list[dict[str, str]] = []
+        self.user_policies: dict[tuple[str, str], str] = {}
+        self.put_user_policy_error = put_user_policy_error
+
+    def put_user_policy(
+        self,
+        *,
+        UserName: str,
+        PolicyName: str,
+        PolicyDocument: str,  # noqa: N803
+    ) -> dict[str, Any]:
+        if self.put_user_policy_error is not None:
+            raise self.put_user_policy_error
+        self.user_policies[(UserName, PolicyName)] = PolicyDocument
+        return {}
+
+    def get_user_policy(self, *, UserName: str, PolicyName: str) -> dict[str, Any]:  # noqa: N803
+        document = self.user_policies.get((UserName, PolicyName))
+        if document is None:
+            raise client_error("NoSuchEntity", "GetUserPolicy")
+        return {"UserName": UserName, "PolicyName": PolicyName, "PolicyDocument": document}
 
     def list_access_keys(self, *, UserName: str) -> dict[str, Any]:  # noqa: N803
         if UserName not in self.keys_by_user:

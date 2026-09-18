@@ -309,3 +309,22 @@ def test_the_verifier_imports_no_aws_and_no_model_sdk(module):
 
     forbidden = {"boto3", "botocore", "strands", "anthropic", "openai", "urllib", "requests"}
     assert forbidden.isdisjoint(imported), f"{module} must stay pure, found {imported & forbidden}"
+
+
+def test_the_same_key_proposed_with_and_without_a_region_is_one_action():
+    """A key is global, so a region on it is noise -- and noise in the duplicate key.
+
+    Left in, the same deactivation proposed twice with different regions produced two
+    different signatures, and the human would have been asked to approve it twice.
+    """
+    plan = ProposedPlan(
+        actions=[
+            ProposedAction(action_type=ActionType.DEACTIVATE_KEY, target=KEY, region=None),
+            ProposedAction(action_type=ActionType.DEACTIVATE_KEY, target=KEY, region="ap-south-1"),
+        ]
+    )
+
+    result = verify_plan(plan, radius(), access_key_id=KEY)
+
+    assert len(result.approved) == 1
+    assert [rejected.reason for rejected in result.rejected] == [RejectionReason.DUPLICATE_ACTION]

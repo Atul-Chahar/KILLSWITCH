@@ -10,6 +10,7 @@ A failure is recorded as a failure. Nothing in here reports success it did not o
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -25,6 +26,38 @@ from verifier.plan import ProposedAction
 
 INACTIVE = "Inactive"
 TERMINAL_STATES = {"shutting-down", "terminated"}
+
+# Deactivating a key stops it minting new sessions. It does nothing to sessions the
+# attacker already holds: credentials from sts:GetSessionToken or sts:AssumeRole keep
+# working until they expire, which can be hours. AWS's own "revoke sessions" control
+# attaches exactly this policy, and without it "contained" is a claim we cannot make.
+SESSION_REVOCATION_POLICY_NAME = "KillswitchSessionRevocation"
+
+
+def session_revocation_policy(issued_before: datetime) -> str:
+    """Deny everything to credentials issued before now, and nothing issued after.
+
+    Scoped by issue time rather than blanket-denying the user, so recovering the account
+    later does not require remembering to unpick this policy first.
+    """
+    return json.dumps(
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Deny",
+                    "Action": "*",
+                    "Resource": "*",
+                    "Condition": {
+                        "DateLessThan": {
+                            "aws:TokenIssueTime": issued_before.astimezone(UTC).isoformat()
+                        }
+                    },
+                }
+            ],
+        }
+    )
+
 
 # Opens a PR removing the secret. Injected so the GitHub API stays out of unit tests.
 PullRequestOpener = Callable[[str, str], str]
@@ -151,18 +184,52 @@ def deactivate_key(
         )
 
     try:
-        if _key_status(iam_client, incident.key_owner, action.target) == INACTIVE:
-            _audit(store, incident, signature, AuditStage.AFTER, when, outcome=INACTIVE)
-            return ContainmentResult(action_signature=signature, succeeded=True, already_done=True)
-        iam_client.update_access_key(
-            UserName=incident.key_owner, AccessKeyId=action.target, Status=INACTIVE
-        )
+        # An already-inactive key still needs its live sessions revoked, so this records
+        # that the deactivation was a no-op rather than returning early.
+        already_inactive = _key_status(iam_client, incident.key_owner, action.target) == INACTIVE
+        if not already_inactive:
+            iam_client.update_access_key(
+                UserName=incident.key_owner, AccessKeyId=action.target, Status=INACTIVE
+            )
     except (ClientError, BotoCoreError) as error:
         return _failed(store, incident, signature, when, error)
 
-    _audit(store, incident, signature, AuditStage.AFTER, when, outcome=INACTIVE)
+    # The key is inactive. Sessions minted from it before now are still live, so the
+    # action is not finished until they are denied too.
+    try:
+        iam_client.put_user_policy(
+            UserName=incident.key_owner,
+            PolicyName=SESSION_REVOCATION_POLICY_NAME,
+            PolicyDocument=session_revocation_policy(when),
+        )
+    except (ClientError, BotoCoreError) as error:
+        _audit(
+            store,
+            incident,
+            signature,
+            AuditStage.FAILED,
+            when,
+            outcome=f"key is {INACTIVE} but existing sessions could not be revoked: {error}",
+            details={"status": INACTIVE},
+        )
+        return ContainmentResult(
+            action_signature=signature, succeeded=False, details={"status": INACTIVE}
+        )
+
+    _audit(
+        store,
+        incident,
+        signature,
+        AuditStage.AFTER,
+        when,
+        outcome=INACTIVE,
+        details={"sessions_revoked": SESSION_REVOCATION_POLICY_NAME},
+    )
     return ContainmentResult(
-        action_signature=signature, succeeded=True, details={"status": INACTIVE}
+        action_signature=signature,
+        succeeded=True,
+        already_done=already_inactive,
+        details={"status": INACTIVE, "sessions_revoked": SESSION_REVOCATION_POLICY_NAME},
     )
 
 

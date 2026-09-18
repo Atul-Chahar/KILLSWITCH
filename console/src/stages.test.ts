@@ -91,4 +91,22 @@ describe("workflowStages", () => {
     expect(confirm.state).toBe("current");
     expect(confirm.note).toBe("not confirmed");
   });
+
+  // The workflow reports a denial as declined rather than failed. The rail has to agree:
+  // an operator who used the gate should not be shown a workflow stuck at Approve.
+  it("treats a declined incident as having passed the approval stage", () => {
+    const incident = awaiting();
+    incident.status = "declined";
+
+    expect(stateOf(incident, "approve").state).toBe("done");
+    expect(stateOf(incident, "contain").note).toBe("declined by the operator");
+  });
+
+  it("does not claim a declined incident was contained", () => {
+    const incident = contained();
+    incident.status = "declined";
+
+    expect(stateOf(incident, "confirm").state).not.toBe("pending");
+    expect(incident.status).not.toBe("contained");
+  });
 });

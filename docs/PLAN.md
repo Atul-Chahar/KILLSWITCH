@@ -212,6 +212,58 @@ Next.js — because the stack is fixed and the console ships through Amplify.
 - [ ] Submit — **operator**
 - **Commit:** `docs: judge-facing README, evidence and limitations`
 
+## Phase 9 — Adversarial review, and what it broke (Fri 18)
+
+The project was reviewed as a hostile judge would: every claim attacked, every AWS
+assumption questioned, no credit for passing unit tests. It found more than the friendly
+reviews did, including one thing that invalidated the architecture diagram.
+
+- [x] **Nothing started the workflow.** `DetectionStack` wrote an incident and stopped;
+      `ResponseStack` built a state machine no code invoked. A repo-wide grep for
+      `StartExecution` returned nothing. Every module test passed because every test called
+      the tasks directly. Fixed with a DynamoDB stream into `workflow/start.py`: only the
+      conditional write that wins produces an INSERT, so two triggers racing still start one
+      execution, and the execution name makes a redelivered record harmless.
+      `tests/test_start_workflow.py` (10 tests) and three template assertions in
+      `tests/test_response_stack.py`
+- [x] **CloudTrail is ~15 minutes behind and we queried it in seconds.** A real run would
+      have found an empty blast radius and reported it as a clean incident. Investigate is
+      now a poll with a `Wait` + `Choice` loop, and giving up empty-handed records
+      `evidence_not_yet_available` per region so `evidence_incomplete` reaches the screen
+      rather than an empty list that reads as "all clear"
+- [x] **Deactivating a key does not lock the attacker out.** Sessions already minted from it
+      stay valid for hours. Containment now also attaches a deny-all policy conditioned on
+      `aws:TokenIssueTime` — what AWS's own revoke-sessions control does — and confirmation
+      re-reads the policy, so `Inactive` alone can no longer be reported as containment
+- [x] **`open_pr` confirmed itself.** `confirm_end_state` set `confirmed = True` for a pull
+      request without checking that one was opened, and the opener raises `NotImplementedError`.
+      The one module that exists to refuse unverified success was granting it. Now confirmed
+      only by a recorded url
+- [x] **A denied action failed the whole incident.** Confirmation re-read every verified
+      target including ones the operator denied, found them alive, and reported `failed`.
+      Confirmation now covers only what containment attempted, and a withheld action ends the
+      incident `declined` — neither contained, because an attacker resource may still be
+      running, nor failed, because nothing broke
+- [x] The same key proposed with and without a region produced two signatures and two
+      approval buttons. Only instances are region-scoped, so only they key on region
+- [x] Destructive IAM is no longer account-wide: `ec2:TerminateInstances` is conditioned on
+      the demo regions, and the IAM grants are scoped to `user/*` so the account root is out
+      of reach. Asserted in `tests/test_response_stack.py`
+- [x] **One criticism was wrong and is recorded as such.** "No retries are configured" —
+      CDK gives every `LambdaInvoke` a default retry covering `Lambda.ServiceException` and
+      siblings, and never `States.TaskFailed`. That is the policy we want. The redundant
+      layer that had been added was removed, and a test now asserts the property instead of
+      trusting the default
+- [x] README limitations grew from 13 entries to 21, including three gaps found here and
+      deliberately **not** fixed: role chaining defeats the blast radius entirely, an attacker
+      who mints new credentials is invisible, and nothing re-investigates during the approval
+      wait
+- **Proof:** `make check` — 293 Python tests, 16 console tests. `evidence/state-machine-definition.json`
+  regenerated and now shows the evidence loop and the declined branch.
+- **Still unproven:** all of it, against real AWS. Session revocation, the stream trigger and
+  the polling loop are unit-tested against fakes and have never met the services they name.
+- **Commit:** `fix: the gaps an adversarial review found, with tests that prove each one`
+
 ---
 
 ## Cut list (if time runs out, drop in this order)

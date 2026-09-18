@@ -246,8 +246,13 @@ def test_an_approved_action_runs_and_a_denied_one_leaves_its_target_alone(world)
     assert sum(1 for result in contained["containment"] if result.get("refused")) == 1
 
 
-def test_a_denial_makes_the_end_state_unconfirmed_and_the_execution_fail(world):
-    """The denied instance is still running, so KILLSWITCH must not claim containment."""
+def test_a_denial_is_reported_as_declined_and_never_as_contained(world):
+    """A denied action is a human decision, not a failure and not a containment.
+
+    The end state describes what KILLSWITCH did, so the denied instance is absent from it
+    rather than sitting there unconfirmed: re-reading a target nobody touched and calling
+    the result a failure punishes the operator for using the gate.
+    """
     state = up_to_approval(world)
     by_target = signatures(state)
 
@@ -261,10 +266,25 @@ def test_a_denial_makes_the_end_state_unconfirmed_and_the_execution_fail(world):
     )
     final = tasks.confirm_task(tasks.contain_task(state))
 
+    assert final["status"] == IncidentStatus.DECLINED.value
+    observed = {target["target"]: target["confirmed"] for target in final["end_state"]["targets"]}
+    assert observed == {KEY: True, LAUNCHED: True}
+    # Still running, on purpose, and the status does not pretend otherwise.
+    assert world.ec2[SECONDARY].instances[SECOND_LAUNCHED] == "running"
+
+
+def test_an_action_that_ran_but_would_not_confirm_still_fails_the_execution(world):
+    """The guarantee that matters: denial is not a failure, but an unconfirmed action is."""
+    state = up_to_approval(world)
+    submit(world, {sig: ApprovalState.APPROVED for sig in signatures(state).values()})
+    contained = tasks.contain_task(state)
+
+    # AWS says the instance came back up between containment and confirmation.
+    world.ec2[SECONDARY].instances[SECOND_LAUNCHED] = "running"
+    final = tasks.confirm_task(contained)
+
     assert final["confirmed"] is False
     assert final["status"] == IncidentStatus.FAILED.value
-    observed = {target["target"]: target["confirmed"] for target in final["end_state"]["targets"]}
-    assert observed == {KEY: True, LAUNCHED: True, SECOND_LAUNCHED: False}
 
 
 def test_approving_everything_reaches_a_confirmed_contained_end_state(world):
@@ -358,18 +378,12 @@ def test_the_console_can_see_the_confirmed_end_state_after_containment(world):
 
 
 def test_an_incident_that_ended_unconfirmed_says_so_on_the_screen(world):
-    """The one status that must never be rounded up. A denied instance is still running."""
+    """The one status that must never be rounded up, as the console will read it."""
     state = up_to_approval(world)
-    by_target = signatures(state)
-    submit(
-        world,
-        {
-            by_target[KEY]: ApprovalState.APPROVED,
-            by_target[LAUNCHED]: ApprovalState.APPROVED,
-            by_target[SECOND_LAUNCHED]: ApprovalState.DENIED,
-        },
-    )
-    tasks.confirm_task(tasks.contain_task(state))
+    submit(world, {sig: ApprovalState.APPROVED for sig in signatures(state).values()})
+    contained = tasks.contain_task(state)
+    world.ec2[SECONDARY].instances[SECOND_LAUNCHED] = "running"
+    tasks.confirm_task(contained)
 
     view = approval_api.incident_view(world.store, INCIDENT_ID)
 
@@ -377,3 +391,68 @@ def test_an_incident_that_ended_unconfirmed_says_so_on_the_screen(world):
     assert view["status"] == IncidentStatus.FAILED.value
     unconfirmed = [t for t in view["end_state"]["targets"] if not t["confirmed"]]
     assert [t["target"] for t in unconfirmed] == [SECOND_LAUNCHED]
+
+
+# --- CloudTrail does not answer immediately -------------------------------------------
+#
+# The demo detects a leak seconds after the push. CloudTrail delivers management events
+# minutes after the call. So the first lookup finding nothing is the expected case, and
+# the dangerous part is that it is indistinguishable from a key that created nothing.
+
+
+def test_an_empty_first_lookup_is_not_treated_as_a_finished_search(world):
+    """Nothing found yet. The workflow must come back rather than narrate an empty plan."""
+    world.cloudtrail[PRIMARY].records = []
+    world.cloudtrail[SECONDARY].records = []
+
+    state = tasks.investigate_task({"incident_id": INCIDENT_ID})
+
+    assert state["evidence_settled"] is False
+    assert state["evidence_attempt"] == 1
+    assert state["blast_radius"]["resources"] == []
+
+
+def test_evidence_that_arrives_late_still_settles_the_search(world):
+    """CloudTrail catching up is the normal path, not an edge case."""
+    world.cloudtrail[PRIMARY].records = []
+    world.cloudtrail[SECONDARY].records = []
+    first = tasks.investigate_task({"incident_id": INCIDENT_ID})
+
+    world.cloudtrail[PRIMARY].records = [run_instances_record(LAUNCHED, PRIMARY)]
+    second = tasks.investigate_task({"incident_id": INCIDENT_ID, **first})
+
+    assert second["evidence_attempt"] == 2
+    assert second["evidence_settled"] is True
+    assert [r["resource_id"] for r in second["blast_radius"]["resources"]] == [LAUNCHED]
+
+
+def test_giving_up_empty_handed_is_recorded_as_unresolved_not_as_clean(world):
+    """The failure mode this whole loop exists for.
+
+    An empty blast radius reads exactly like a clean incident. Once the workflow stops
+    waiting it has to say which of the two it actually established, or the console will
+    show "the key created nothing" on evidence that never arrived.
+    """
+    world.cloudtrail[PRIMARY].records = []
+    world.cloudtrail[SECONDARY].records = []
+
+    state = tasks.investigate_task(
+        {"incident_id": INCIDENT_ID, "evidence_attempt": tasks.MAX_EVIDENCE_ATTEMPTS - 1}
+    )
+
+    assert state["evidence_settled"] is True
+    kinds = {problem["kind"] for problem in state["blast_radius"]["problems"]}
+    assert kinds == {"evidence_not_yet_available"}
+
+
+def test_an_unresolved_search_marks_the_verification_incomplete(world):
+    """The console renders evidence_incomplete, so the gap has to reach it."""
+    world.cloudtrail[PRIMARY].records = []
+    world.cloudtrail[SECONDARY].records = []
+    state = tasks.investigate_task(
+        {"incident_id": INCIDENT_ID, "evidence_attempt": tasks.MAX_EVIDENCE_ATTEMPTS - 1}
+    )
+
+    state = tasks.verify_task(tasks.narrate_task(state))
+
+    assert state["verification"]["evidence_incomplete"] is True
