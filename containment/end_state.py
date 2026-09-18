@@ -79,13 +79,17 @@ def _confirm_key(
     iam_client: Any,
     access_key_id: str,
     *,
+    owner: str | None = None,
     sleep: Any = time.sleep,
 ) -> None:
-    if not incident.key_owner:
+    # The owner containment used, not the incident's: an attacker-minted key belongs to
+    # whichever user the attacker created it under.
+    key_owner = owner or incident.key_owner
+    if not key_owner:
         target.aws_error_code = "UnknownKeyOwner"
         return
     for attempt in range(KEY_STATUS_ATTEMPTS):
-        target.observed_state = _key_status(iam_client, incident.key_owner, access_key_id)
+        target.observed_state = _key_status(iam_client, key_owner, access_key_id)
         if target.observed_state == INACTIVE:
             break
         if attempt == KEY_STATUS_ATTEMPTS - 1:
@@ -95,7 +99,7 @@ def _confirm_key(
     # Inactive alone is not containment: it stops new sessions, not the ones the attacker
     # already holds. The revocation policy is what denies those, so its absence means the
     # key is deactivated and the attacker may still be inside.
-    if not _sessions_revoked(iam_client, incident.key_owner):
+    if not _sessions_revoked(iam_client, key_owner):
         target.aws_error_code = "SessionsNotRevoked"
         return
     target.confirmed = True
@@ -143,7 +147,14 @@ def confirm_end_state(
 
         try:
             if action.action_type == ActionType.DEACTIVATE_KEY:
-                _confirm_key(target, incident, iam_client, action.target, sleep=sleep)
+                _confirm_key(
+                    target,
+                    incident,
+                    iam_client,
+                    action.target,
+                    owner=details.get(action_signature_of(action), {}).get("owner"),
+                    sleep=sleep,
+                )
             elif action.action_type == ActionType.TERMINATE_INSTANCE:
                 _confirm_instance(target, verified, ec2_clients)
             elif action.action_type == ActionType.OPEN_PR:

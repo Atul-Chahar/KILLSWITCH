@@ -61,6 +61,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="SECONDS",
         help="poll until at least one resource appears, for up to this many seconds",
     )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="also write the blast radius as JSON, for scripts/capture_narration.py",
+    )
     return parser.parse_args(argv)
 
 
@@ -98,6 +105,14 @@ def main(argv: list[str] | None = None) -> int:
 
     print()
     print_report(radius)
+
+    if args.out is not None:
+        # The same object the workflow hands the narrator and the verifier, so a captured
+        # narration is a narration of this incident and not of a retyped summary of it.
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(radius.model_dump_json(indent=2) + "\n")
+        print(f"\nblast radius written to {args.out}")
+
     return 0 if radius.is_complete else 1
 
 

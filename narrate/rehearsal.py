@@ -11,7 +11,7 @@ shown on the screen, so a rehearsal plan can never be passed off as a model's.
 
 from __future__ import annotations
 
-from investigate.blast_radius import BlastRadius
+from investigate.blast_radius import BlastRadius, ResourceKind
 from narrate.schema import NarratedAction, NarratedIncident, NarrationError
 from verifier.verify import ActionType
 
@@ -49,18 +49,23 @@ def rehearsal_narration(radius: BlastRadius) -> NarratedIncident:
             reason="The key is exposed and CloudTrail shows it being used.",
         )
     ]
-    actions += [
-        NarratedAction(
-            action_type=ActionType.TERMINATE_INSTANCE,
-            target=resource.resource_id,
-            region=resource.region,
-            reason=(
-                f"{resource.event_name} by the leaked key in {resource.region} "
-                f"at {resource.event_time.isoformat()}."
-            ),
+    # One action per kind. A key the attacker minted is deactivated, not terminated, and
+    # asking to terminate it would only rehearse a malformed_target rejection.
+    for resource in radius.resources:
+        instance = resource.kind is ResourceKind.EC2_INSTANCE
+        actions.append(
+            NarratedAction(
+                action_type=(
+                    ActionType.TERMINATE_INSTANCE if instance else ActionType.DEACTIVATE_KEY
+                ),
+                target=resource.resource_id,
+                region=resource.region if instance else None,
+                reason=(
+                    f"{resource.event_name} by the leaked key in {resource.region} "
+                    f"at {resource.event_time.isoformat()}."
+                ),
+            )
         )
-        for resource in radius.resources
-    ]
     actions.append(
         NarratedAction(
             action_type=ActionType.TERMINATE_INSTANCE,

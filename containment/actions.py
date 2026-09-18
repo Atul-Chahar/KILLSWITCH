@@ -19,6 +19,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import BaseModel, Field
 
 from containment.guard import NotApproved, require_approval
+from investigate.identify import IdentificationError, owner_of_access_key
 from shared.approvals import AuditEntry, AuditStage, action_signature
 from shared.incidents import IncidentStore
 from shared.models import IncidentRecord
@@ -154,6 +155,22 @@ def terminate_instance(
     )
 
 
+def _owner_of(iam_client: Any, incident: IncidentRecord, target: str) -> str | None:
+    """Which IAM user this key belongs to.
+
+    The incident's own key uses the owner investigation already established and persisted;
+    guessing a different one would be a destructive call against a principal nobody named.
+    A key the attacker minted is a different user's problem entirely, so it is resolved
+    here, fresh, against IAM.
+    """
+    if target == incident.access_key_id:
+        return incident.key_owner
+    try:
+        return owner_of_access_key(iam_client, target)
+    except IdentificationError:
+        return None
+
+
 def _key_status(iam_client: Any, user_name: str, access_key_id: str) -> str | None:
     for key in iam_client.list_access_keys(UserName=user_name).get("AccessKeyMetadata", []):
         if key.get("AccessKeyId") == access_key_id:
@@ -172,25 +189,25 @@ def deactivate_key(
     when = now or datetime.now(UTC)
     signature = _start(store, incident, action, when)
 
-    # IAM cannot deactivate a key without its owning user, and guessing one would be a
-    # destructive call against a principal nobody identified.
-    if not incident.key_owner:
+    # IAM cannot deactivate a key without its owning user.
+    owner = _owner_of(iam_client, incident, action.target)
+    if not owner:
         return _failed(
             store,
             incident,
             signature,
             when,
-            RuntimeError("the owning IAM user is unknown, so the key cannot be deactivated"),
+            RuntimeError(
+                f"the owning IAM user of {action.target} is unknown, so it cannot be deactivated"
+            ),
         )
 
     try:
         # An already-inactive key still needs its live sessions revoked, so this records
         # that the deactivation was a no-op rather than returning early.
-        already_inactive = _key_status(iam_client, incident.key_owner, action.target) == INACTIVE
+        already_inactive = _key_status(iam_client, owner, action.target) == INACTIVE
         if not already_inactive:
-            iam_client.update_access_key(
-                UserName=incident.key_owner, AccessKeyId=action.target, Status=INACTIVE
-            )
+            iam_client.update_access_key(UserName=owner, AccessKeyId=action.target, Status=INACTIVE)
     except (ClientError, BotoCoreError) as error:
         return _failed(store, incident, signature, when, error)
 
@@ -198,7 +215,7 @@ def deactivate_key(
     # action is not finished until they are denied too.
     try:
         iam_client.put_user_policy(
-            UserName=incident.key_owner,
+            UserName=owner,
             PolicyName=SESSION_REVOCATION_POLICY_NAME,
             PolicyDocument=session_revocation_policy(when),
         )
@@ -210,10 +227,12 @@ def deactivate_key(
             AuditStage.FAILED,
             when,
             outcome=f"key is {INACTIVE} but existing sessions could not be revoked: {error}",
-            details={"status": INACTIVE},
+            details={"status": INACTIVE, "owner": owner},
         )
         return ContainmentResult(
-            action_signature=signature, succeeded=False, details={"status": INACTIVE}
+            action_signature=signature,
+            succeeded=False,
+            details={"status": INACTIVE, "owner": owner},
         )
 
     _audit(
@@ -223,13 +242,19 @@ def deactivate_key(
         AuditStage.AFTER,
         when,
         outcome=INACTIVE,
-        details={"sessions_revoked": SESSION_REVOCATION_POLICY_NAME},
+        details={"sessions_revoked": SESSION_REVOCATION_POLICY_NAME, "owner": owner},
     )
     return ContainmentResult(
         action_signature=signature,
         succeeded=True,
         already_done=already_inactive,
-        details={"status": INACTIVE, "sessions_revoked": SESSION_REVOCATION_POLICY_NAME},
+        details={
+            "status": INACTIVE,
+            "sessions_revoked": SESSION_REVOCATION_POLICY_NAME,
+            # Carried so confirmation re-reads the same user rather than assuming the
+            # incident's owner, which is not the owner of an attacker-minted key.
+            "owner": owner,
+        },
     )
 
 

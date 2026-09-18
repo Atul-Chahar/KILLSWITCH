@@ -62,6 +62,17 @@ Read it back from CloudTrail with your own admin credentials:
 python scripts/lookup.py <the demo key id> --wait 900
 ```
 
+Capture what the model actually said, once, while the evidence is in front of you. This
+is the artefact that answers "was Bedrock ever really called":
+
+```bash
+python scripts/lookup.py <the demo key id> --out /tmp/blast-radius.json
+python scripts/capture_narration.py \
+  --evidence /tmp/blast-radius.json \
+  --repository <owner>/<private-demo-repo> \
+  --key-owner demo-leaky-user
+```
+
 CloudTrail Event History is not instant. `--wait` polls instead of reporting,
 wrongly, that the key did nothing.
 

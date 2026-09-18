@@ -15,7 +15,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from investigate.blast_radius import BlastRadius, CreatedResource
+from investigate.blast_radius import BlastRadius, CreatedResource, ResourceKind
 from verifier.plan import ProposedAction, ProposedPlan
 
 # 8 or 17 hexadecimal characters, which are the only two forms AWS issues.
@@ -85,13 +85,23 @@ def _verify_terminate_instance(
 
 
 def _verify_deactivate_key(
-    action: ProposedAction, access_key_id: str
+    action: ProposedAction, radius: BlastRadius, access_key_id: str
 ) -> tuple[CreatedResource | None, RejectionReason | None]:
+    """The leaked key itself, or a key CloudTrail shows the leaked key minted.
+
+    The second case is what stops an attacker keeping their access after the headline
+    action runs. It is still evidence-bound: a key nobody can show this incident creating
+    is somebody else's credential, and deactivating it would be an outage we caused.
+    """
     if not ACCESS_KEY_PATTERN.match(action.target):
         return None, RejectionReason.MALFORMED_TARGET
-    if action.target != access_key_id:
-        return None, RejectionReason.KEY_MISMATCH
-    return None, None
+    if action.target == access_key_id:
+        return None, None
+
+    for resource in radius.resources:
+        if resource.kind is ResourceKind.IAM_ACCESS_KEY and resource.resource_id == action.target:
+            return resource, None
+    return None, RejectionReason.KEY_MISMATCH
 
 
 def _verify_open_pr(
@@ -115,7 +125,7 @@ def verify_action(
     if action.action_type == ActionType.TERMINATE_INSTANCE:
         return _verify_terminate_instance(action, radius)
     if action.action_type == ActionType.DEACTIVATE_KEY:
-        return _verify_deactivate_key(action, access_key_id)
+        return _verify_deactivate_key(action, radius, access_key_id)
     if action.action_type == ActionType.OPEN_PR:
         return _verify_open_pr(action, repository)
     return None, RejectionReason.UNKNOWN_ACTION_TYPE

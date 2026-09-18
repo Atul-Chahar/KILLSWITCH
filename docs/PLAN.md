@@ -264,6 +264,58 @@ reviews did, including one thing that invalidated the architecture diagram.
   the polling loop are unit-tested against fakes and have never met the services they name.
 - **Commit:** `fix: the gaps an adversarial review found, with tests that prove each one`
 
+## Phase 10 — Attacker persistence, adversarial proof, and the joins (Fri 18)
+
+Scoped deliberately: the highest-impact items from a hostile audit, and nothing else.
+Role chaining and post-approval re-investigation were considered and **cut** — reasons
+below, because a cut with a reason is worth more than a half-built feature.
+
+- [x] **`CreateAccessKey` is evidence now.** An attacker's first move with a working key is
+      often to mint one of their own, and until this phase that key was invisible to every
+      stage downstream: deactivating the leaked key left them exactly where they were. The
+      blast radius carries a second resource kind, the verifier will approve deactivating a
+      key it can show this incident creating, and containment resolves that key's owner
+      separately because it is not the incident's user
+- [x] **Deactivate, not delete.** `DeleteAccessKey` was the obvious action and is the wrong
+      one: same effect, irreversible, and a new destructive IAM grant. `UpdateAccessKey ->
+      Inactive` reuses the permission containment already has and can be undone if we were
+      wrong about the key
+- [x] `tests/test_narrate_adversarial.py` — 17 tests where the model proposes what it should
+      not and plain code refuses: a hallucinated instance, the right instance in the wrong
+      region, someone else's key, an unrelated repository, an action type KILLSWITCH does
+      not have, six malformed targets, over-reach alongside a valid action, and the same
+      action twice. The one approval in the file is the evidence-bound exception, asserted
+      beside the rejections so it stays bound
+- [x] `tests/test_integration_wiring.py` — 19 tests running a signed GitHub push all the way
+      to a confirmed end state with nothing seeded, through the table stream and the real
+      console API. Includes the deny path, the nobody-answered path, the superseded-token
+      path, and a test that walks the synthesized definition to prove the runner follows the
+      state order that is actually deployed
+- [x] `scripts/capture_narration.py` — one real Bedrock call, the real verifier over its
+      answer, scrubbed and written to `evidence/`. It labels itself as evidence the model was
+      called and **not** evidence the verifier is correct, so the artefact cannot be read as
+      a passing test
+- [x] Containment gained `iam:GetAccessKeyLastUsed`, read-only, because an attacker-minted
+      key belongs to whichever user they created it under
+
+**Cut, with reasons:**
+
+- **Role chaining** (`AssumeRole` -> session key -> downstream activity) is the largest
+  evidence gap in the project and is documented as limitation 3. It was cut because it is
+  invisible on camera unless the attack script is rewritten to use it, and because an
+  unbounded key-by-key sweep across regions would not survive the 60-second Lambda timeout
+  or CloudTrail's two-lookups-per-second limit. Doing it properly needs a bounded frontier
+  and a claim change — "the leaked key, or a credential obtained with it" — not a patch.
+- **Re-investigation after approval** was cut because the obvious implementation is unsafe
+  in two directions. Acting on newly found resources would destroy things no human approved.
+  Dropping approved actions whose evidence no longer verifies turns a transient CloudTrail
+  failure into a denial of containment. The correct version drops only on positive
+  contradiction and sends new findings to a second approval round; that is a phase, not a fix.
+
+- **Proof:** `make check` — 333 Python tests, 16 console tests.
+- **Still unproven:** every line of it against real AWS.
+- **Commit:** `feat: see the credentials an attacker mints, and prove the verifier refuses the rest`
+
 ---
 
 ## Cut list (if time runs out, drop in this order)

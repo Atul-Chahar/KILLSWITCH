@@ -79,3 +79,23 @@ def test_the_documented_flags_parse(lookup):
 
     assert args.wait == 900
     assert args.hours == 6
+
+
+def test_it_can_write_the_blast_radius_the_capture_script_reads(lookup, tmp_path):
+    """Without this there is no way to produce the input capture_narration.py needs."""
+    from investigate.blast_radius import BlastRadius
+
+    args = lookup.parse_args(["AKIA" + "IOSFODNN7EXAMPLE", "--out", str(tmp_path / "r.json")])
+
+    assert args.out == tmp_path / "r.json"
+    # And what it writes round-trips into the type the narrator and verifier both take.
+    written = tmp_path / "r.json"
+    written.write_text(
+        BlastRadius(
+            access_key_id="AKIA" + "IOSFODNN7EXAMPLE",
+            regions_searched=["ap-south-1"],
+            window_start="2026-09-18T08:00:00+00:00",
+            window_end="2026-09-18T11:00:00+00:00",
+        ).model_dump_json()
+    )
+    assert BlastRadius.model_validate_json(written.read_text()).regions_searched == ["ap-south-1"]

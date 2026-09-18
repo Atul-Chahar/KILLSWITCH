@@ -17,13 +17,34 @@ class FakeTable:
     def __init__(self) -> None:
         self.items: dict[tuple[str, str], dict[str, Any]] = {}
         self.put_calls = 0
+        # What the table's stream would emit. Recorded here rather than hand-written in a
+        # test, so the record that starts the workflow comes from the write that created
+        # the incident and cannot drift away from it.
+        self.stream: list[dict[str, Any]] = []
+
+    def _emit(self, key: tuple[str, str], item: dict[str, Any], *, existed: bool) -> None:
+        self.stream.append(
+            {
+                "eventName": "MODIFY" if existed else "INSERT",
+                "dynamodb": {
+                    "Keys": {"incident_id": {"S": key[0]}, "sk": {"S": key[1]}},
+                    "NewImage": {
+                        name: {"S": str(value)}
+                        for name, value in item.items()
+                        if isinstance(value, str)
+                    },
+                },
+            }
+        )
 
     def put_item(self, *, Item: dict[str, Any], **kwargs: Any) -> dict[str, Any]:  # noqa: N803
         self.put_calls += 1
         key = (Item["incident_id"], Item.get("sk", "incident"))
-        if kwargs.get("ConditionExpression") is not None and key in self.items:
+        existed = key in self.items
+        if kwargs.get("ConditionExpression") is not None and existed:
             raise client_error("ConditionalCheckFailedException", "PutItem")
         self.items[key] = dict(Item)
+        self._emit(key, self.items[key], existed=existed)
         return {}
 
     def get_item(self, *, Key: dict[str, Any]) -> dict[str, Any]:  # noqa: N803
@@ -47,6 +68,7 @@ class FakeTable:
             field, _, placeholder = assignment.partition("=")
             field = field.strip()
             item[names.get(field, field)] = ExpressionAttributeValues[placeholder.strip()]
+        self._emit((Key["incident_id"], Key.get("sk", "incident")), item, existed=True)
         return {}
 
     def query(self, *, KeyConditionExpression: Any, **_kwargs: Any) -> dict[str, Any]:  # noqa: N803

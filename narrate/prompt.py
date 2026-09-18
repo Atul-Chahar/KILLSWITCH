@@ -31,7 +31,9 @@ Rules for the plan:
 - Use only these action types: {DEACTIVATE}, {TERMINATE}.
 - {OPEN_PR} exists in the system but is not available in this deployment.
   Do not propose it.
-- {DEACTIVATE} targets the leaked access key id, with region null.
+- {DEACTIVATE} targets an access key id, with region null. Use it for the leaked key,
+  and also for any access key the evidence shows the leaked key created: an attacker who
+  minted their own credential keeps their access when the leaked one is deactivated.
 - {TERMINATE} targets one instance id, with the region the evidence recorded
   for it. One action per instance.
 - Deal with every resource in the evidence. A resource you leave out is a resource that

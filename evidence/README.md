@@ -4,11 +4,12 @@ What is in here, and — just as importantly — what is not.
 
 | File | What it is | What it proves |
 |---|---|---|
-| `test-output.txt` | A full `pytest` run plus the console's vitest run | 293 Python tests and 16 console tests pass. Every AWS client in them is an in-memory fake and every Strands agent is a stub |
+| `test-output.txt` | A full `pytest` run plus the console's vitest run | 334 Python tests and 16 console tests pass. Every AWS client in them is an in-memory fake and every Strands agent is a stub |
 | `state-machine-definition.json` | The Step Functions definition CDK **synthesizes** | The order of states, that the approval step is `lambda:invoke.waitForTaskToken`, and that an unconfirmed end state goes to `Fail`, not `Succeed` |
 | `landing-page.jpg` | The public page at `/`, running locally | The pitch, the three AWS services named, and the console preview that opens the real thing |
 | `console-incident-fixture-mode.jpg` | The operator console, running locally against the bundled fixture | The incident view: the workflow rail with Approve as the live stage, timeline, blast radius, cost estimate, model prose labelled as untrusted, and the instance with no proposed action highlighted |
 | `console-verifier-rejection-fixture-mode.jpg` | The same screen, scrolled to the plan | The verifier striking out `i-0999999999ffffff9` with "this leaked key never created it", next to the two actions it approved |
+| `narration-from-the-model.json` | One real Bedrock call and the verifier's verdict on it, written by `scripts/capture_narration.py` | **Not captured yet.** Until it is, nothing in this repository proves a model was ever called |
 | `console-and-landing-mobile-390px.png` | Both views rendered at a 390px viewport | The phone layout: the rail unsticks and stacks, the nav collapses, and neither view scrolls sideways |
 
 ## What is missing, and why

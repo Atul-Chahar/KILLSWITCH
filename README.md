@@ -129,7 +129,7 @@ step in [docs/RUNBOOK.md](docs/RUNBOOK.md).
 ## Tests
 
 ```bash
-make test           # 293 Python tests
+make test           # 334 Python tests
 make check          # the full gate, including the console's 16 tests
 ```
 
@@ -141,6 +141,8 @@ The tests worth looking at:
 - `tests/test_response_stack.py` — the workflow's shape as a safety property, asserted on the synthesized template.
 - `tests/test_workflow_end_to_end.py` — the whole chain, investigate to confirm, against in-memory AWS. An approved action runs, a denied one leaves its target untouched and ends the incident `declined` rather than `failed`, and a first CloudTrail lookup that finds nothing sends the workflow back to wait instead of narrating an empty plan. This file found three seam bugs the module tests could not see.
 - `tests/test_start_workflow.py` — the wire between detection and the workflow, which for most of this project's life did not exist. Also the reason a redelivered stream record cannot start a second execution.
+- `tests/test_narrate_adversarial.py` — the model proposing what it should not: a hallucinated instance, the right instance in the wrong region, someone else's key, an action type KILLSWITCH does not have, and six targets that are not well-formed ids. Every one is struck out by plain code before a human sees a button.
+- `tests/test_integration_wiring.py` — a signed GitHub push becoming a contained incident with nothing seeded: detect, the table stream, the starter, every stage, the console's API, containment, confirmation. Includes the deny path, the nobody-answered path, the superseded-token path, and a check that the runner follows the same state order as the synthesized definition.
 
 Saved output and screenshots of both views are in [evidence/](evidence/).
 
@@ -179,10 +181,11 @@ chain of fakes.
    `AccessKeyId`. An attacker who calls `sts:AssumeRole` or `sts:GetSessionToken` first
    acts under a different key id, and everything they then create is invisible to us. The
    incident would look clean. This is the single largest evidence gap in the project.
-4. **An attacker who mints new credentials is invisible.** `CREATION_EVENTS` maps
-   `RunInstances` and nothing else, so `CreateAccessKey`, `CreateUser` and
-   `AttachUserPolicy` are never seen. Deactivating the leaked key does not help if the
-   attacker made their own.
+4. **Attacker persistence is only half covered.** `CreateAccessKey` is now evidence:
+   a key the leaked key minted appears in the blast radius, the verifier will approve
+   deactivating it, and containment resolves its owner separately because it is not the
+   incident's user. `CreateUser`, `AttachUserPolicy`, `CreateRole` and console passwords
+   are still invisible, so an attacker with a second route in keeps it.
 5. **Nothing re-investigates during the approval wait.** The blast radius is built once.
    An attacker who launches more instances while a human is deciding is never seen, and
    the verifier would reject an action against them as "not in the blast radius".
@@ -190,10 +193,11 @@ chain of fakes.
    check, because an empty plan is valid. The console highlights resources with no proposed
    action and the schema makes the model state an empty plan rather than omit the field,
    but neither is a check. The full list is in [docs/VERIFIER-LIMITS.md](docs/VERIFIER-LIMITS.md).
-7. **It only understands `RunInstances`.** A key used to create IAM users, S3 buckets,
-   Lambda functions or anything else produces an empty blast radius, and KILLSWITCH would
-   report a leak with nothing to contain — which reads exactly like a clean incident. This
-   is the most dangerous limitation in the project, because its failure mode is silence.
+7. **It understands two creation events.** `RunInstances` and `CreateAccessKey`. A key
+   used to create S3 buckets, Lambda functions, RDS instances or anything else produces a
+   blast radius that is empty of them, and KILLSWITCH would report a leak with nothing to
+   contain — which reads exactly like a clean incident. This is still the most dangerous
+   limitation in the project, because its failure mode is silence.
 8. **It has no answer to an Auto Scaling group.** Terminating an instance that something
    else replaces confirms successfully and changes nothing. We do not look for the thing
    doing the replacing.

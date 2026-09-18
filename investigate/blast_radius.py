@@ -13,19 +13,29 @@ from typing import Any
 from botocore.exceptions import ClientError
 from pydantic import BaseModel, Field
 
-from investigate.cloudtrail import EvidenceError, event_detail, instance_ids, lookup_by_access_key
+from investigate.cloudtrail import (
+    EvidenceError,
+    created_access_key_id,
+    event_detail,
+    instance_ids,
+    lookup_by_access_key,
+)
 
 DEFAULT_WINDOW_HOURS = 3
 
 
 class ResourceKind(StrEnum):
     EC2_INSTANCE = "ec2_instance"
+    IAM_ACCESS_KEY = "iam_access_key"
 
 
 # Only events that bring a resource into existence count. A Describe call tells us the
 # key was used, but it creates nothing for containment to act on.
 CREATION_EVENTS: dict[str, ResourceKind] = {
     "RunInstances": ResourceKind.EC2_INSTANCE,
+    # Persistence. Deactivating the leaked key is worth nothing if the attacker minted a
+    # second one, and until this line that key was invisible to every stage downstream.
+    "CreateAccessKey": ResourceKind.IAM_ACCESS_KEY,
 }
 
 
@@ -73,6 +83,16 @@ class BlastRadius(BaseModel):
         return {resource.resource_id for resource in self.resources}
 
 
+def _created_ids(
+    kind: ResourceKind, detail: dict[str, Any], record: dict[str, Any]
+) -> tuple[str, ...]:
+    """The ids one creation event brought into existence, per kind of thing created."""
+    if kind is ResourceKind.EC2_INSTANCE:
+        return instance_ids(detail, record)
+    key_id = created_access_key_id(detail)
+    return (key_id,) if key_id else ()
+
+
 def resources_from_record(
     record: dict[str, Any], region: str
 ) -> tuple[list[CreatedResource], list[EvidenceProblem]]:
@@ -94,7 +114,7 @@ def resources_from_record(
         ]
 
     event_id = str(record.get("EventId", ""))
-    ids = instance_ids(detail, record)
+    ids = _created_ids(kind, detail, record)
     if not ids:
         # The key demonstrably created something and we cannot say what. That is a gap
         # in the evidence, not an empty result.

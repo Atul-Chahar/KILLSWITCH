@@ -29,7 +29,7 @@ export type ProblemKind =
 
 export interface CreatedResource {
   resource_id: string;
-  kind: "ec2_instance";
+  kind: "ec2_instance" | "iam_access_key";
   event_name: string;
   region: string;
   event_time: string;

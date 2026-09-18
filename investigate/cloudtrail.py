@@ -80,6 +80,18 @@ def event_detail(record: dict[str, Any]) -> dict[str, Any]:
     return parsed
 
 
+def created_access_key_id(detail: dict[str, Any]) -> str | None:
+    """The access key id a CreateAccessKey call handed back.
+
+    An attacker's first move with a working key is often to mint one of their own, so a
+    responder that only deactivates the leaked key leaves them exactly where they were.
+    """
+    response_elements = detail.get("responseElements") or {}
+    access_key = response_elements.get("accessKey") or {}
+    key_id = access_key.get("accessKeyId")
+    return str(key_id) if key_id else None
+
+
 def instance_ids(detail: dict[str, Any], record: dict[str, Any]) -> tuple[str, ...]:
     """Instance ids from the response body, falling back to the resource list."""
     response_elements = detail.get("responseElements") or {}

@@ -189,6 +189,16 @@ class ResponseStack(Stack):
                 conditions={"StringEquals": {"aws:RequestedRegion": demo_regions}},
             )
         )
+        # Reading which user owns a key is not destructive, and containment needs it: an
+        # access key the attacker minted belongs to whichever user they created it under,
+        # not to the user this incident is about.
+        contain.add_to_role_policy(
+            iam.PolicyStatement(
+                sid="ResolveTheOwnerBeforeActing",
+                actions=["iam:GetAccessKeyLastUsed"],
+                resources=["*"],
+            )
+        )
         contain.add_to_role_policy(
             iam.PolicyStatement(
                 sid="ContainTheLeakedIdentity",
