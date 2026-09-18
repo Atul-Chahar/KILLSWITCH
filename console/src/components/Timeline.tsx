@@ -1,9 +1,12 @@
 import { elapsedSeconds, formatDuration } from "../cost";
 import type { Incident } from "../types";
 
+type MomentKind = "attack" | "detect" | "verify" | "contain" | "fail";
+
 interface Moment {
   label: string;
   at: string;
+  kind: MomentKind;
 }
 
 function moments(incident: Incident): Moment[] {
@@ -11,17 +14,37 @@ function moments(incident: Incident): Moment[] {
   const resources = incident.blast_radius?.resources ?? [];
 
   const first = resources[0];
-  if (first) found.push({ label: "First attacker API call", at: first.event_time });
+  if (first) found.push({ label: "First attacker API call", at: first.event_time, kind: "attack" });
   for (const resource of resources) {
     found.push({
       label: `Launched ${resource.resource_id} in ${resource.region}`,
       at: resource.event_time,
+      kind: "attack",
     });
   }
-  found.push({ label: "KILLSWITCH detected the leak", at: incident.detected_at });
+  found.push({ label: "KILLSWITCH detected the leak", at: incident.detected_at, kind: "detect" });
+
   for (const entry of incident.audit) {
     if (entry.stage === "after") {
-      found.push({ label: `Contained ${entry.action_signature}`, at: entry.recorded_at });
+      found.push({
+        label: `Contained ${entry.action_signature}`,
+        at: entry.recorded_at,
+        kind: "contain",
+      });
+    }
+    if (entry.stage === "refused") {
+      found.push({
+        label: `Refused ${entry.action_signature}`,
+        at: entry.recorded_at,
+        kind: "verify",
+      });
+    }
+    if (entry.stage === "failed") {
+      found.push({
+        label: `Failed ${entry.action_signature}`,
+        at: entry.recorded_at,
+        kind: "fail",
+      });
     }
   }
   return found.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
@@ -34,17 +57,20 @@ export function Timeline({ incident }: { incident: Incident }) {
 
   return (
     <section className="panel">
-      <div className="panel-head">
+      <div className="panel-head head-yellow">
         <h2>Timeline</h2>
         {first && last && entries.length > 1 && (
-          <span className="pill">{formatDuration(elapsedSeconds(first.at, last.at))} elapsed</span>
+          <span className="panel-tag panel-tag-bare">
+            {formatDuration(elapsedSeconds(first.at, last.at))} ELAPSED
+          </span>
         )}
       </div>
       <ol className="timeline">
         {entries.map((moment, index) => (
           <li key={`${moment.label}-${index}`}>
-            <time className="mono">{moment.at.slice(11, 19)}</time>
-            <span>{moment.label}</span>
+            <time>{moment.at.slice(11, 19)}</time>
+            <span className={`timeline-dot dot-${moment.kind}`} />
+            <span className="timeline-label">{moment.label}</span>
           </li>
         ))}
       </ol>

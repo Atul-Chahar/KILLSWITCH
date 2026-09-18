@@ -8,37 +8,36 @@ export function EndStatePanel({ incident }: { incident: Incident }) {
 
   return (
     <section className="panel">
-      <div className="panel-head">
+      <div className="panel-head head-green">
         <h2>Confirmed end state</h2>
-        <span className={`pill ${allConfirmed ? "verified" : "danger"}`}>
-          {allConfirmed ? "Confirmed with AWS" : "Not confirmed"}
-        </span>
+        <span className="panel-tag">{allConfirmed ? "CONFIRMED WITH AWS" : "NOT CONFIRMED"}</span>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Action</th>
-            <th>Target</th>
-            <th>Observed</th>
-          </tr>
-        </thead>
-        <tbody>
-          {endState.targets.map((target) => (
-            <tr key={`${target.action_type}-${target.target}`}>
-              <td>{target.action_type.replace(/_/g, " ")}</td>
-              <td className="mono">{target.target}</td>
-              <td className={target.confirmed ? "mono ok" : "mono bad"}>
-                {target.observed_state ?? target.aws_error_code ?? "unknown"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {!allConfirmed && (
-        <p className="warning small">
+
+      <div className="end-head">
+        <span>ACTION</span>
+        <span>TARGET</span>
+        <span>OBSERVED</span>
+      </div>
+      {endState.targets.map((target) => (
+        <div className="end-row" key={`${target.action_type}-${target.target}`}>
+          <span className="end-action">{target.action_type.replace(/_/g, " ")}</span>
+          <span className="end-target">{target.target}</span>
+          <span className={target.confirmed ? "end-observed" : "end-observed end-observed-bad"}>
+            {target.observed_state ?? target.aws_error_code ?? "unknown"}
+          </span>
+        </div>
+      ))}
+
+      {allConfirmed ? (
+        <p className="end-foot">
+          KILLSWITCH re-read AWS after acting. An unconfirmed action fails the execution rather
+          than being rounded up to success.
+        </p>
+      ) : (
+        <div className="warning">
           KILLSWITCH re-read AWS and could not confirm every action. This incident is reported as
           failed rather than contained.
-        </p>
+        </div>
       )}
     </section>
   );

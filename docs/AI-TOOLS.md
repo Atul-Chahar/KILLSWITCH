@@ -7,6 +7,7 @@ Both events require this disclosure. It was kept current during the build, not w
 | Claude Code (Anthropic), Opus | Most of the implementation, under the constraints in `CLAUDE.md`. Every phase was reviewed by a human before commit |
 | ECC plugin (MIT, github.com/affaan-m/ecc) | `/ecc:plan` before each phase, the `tdd-workflow` skill for `verifier/` and `containment/`, `/code-review` after each phase, and the `security-reviewer` agent before the freeze |
 | Claude (chat) | Research on the hackathon rules, idea validation, architecture decisions |
+| Claude Design (claude.ai/design) | The visual design for the public page and the console, authored as a design project and pulled into the repo over MCP. The design is a prototype with hardcoded data; the implementation is ours and is wired to the real incident record |
 | Amazon Bedrock, via the Strands Agents SDK | **Inside the product**, not in the toolchain: the narrator that writes the incident summary and proposes a containment plan. It has no tools and its output is re-checked by deterministic code before a human sees it |
 
 ## How it was used, honestly
@@ -21,6 +22,10 @@ The work was done phase by phase against `docs/PLAN.md`, with a prompt per phase
 - **Every commit body states what was verified and what was not.** "Never claim something
   works that you have not run" is rule 7 of `CLAUDE.md`, and it is why the README's
   limitations section is as long as it is.
+- **The design was checked, not trusted.** The design source states facts about this
+  repository — file paths, `tools=[]`, a test count. Each one was verified against the code
+  before it shipped on a public page. Its scenario tabs, which switch between invented
+  incident states, were left out rather than implemented.
 - **The SDK was read, not assumed.** The decision to disable Strands' structured-output retry
   came from reading the installed `strands-agents` 1.56.0 source, where a pydantic
   `ValidationError` is handed back to the model as a tool error so it can try again. The

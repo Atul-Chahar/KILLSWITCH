@@ -1,9 +1,10 @@
 # KILLSWITCH test run
-# 2026-09-17T21:41:43Z, Python 3.12.13.
+# 2026-09-18T11:38:36Z, Python 3.12.13.
 # Every AWS client in these tests is an in-memory fake, and every Strands agent is a stub.
 # Nothing in this run called a real AWS service or a real model.
 
 ============================= test session starts ==============================
+testpaths: tests
 collected 260 items
 
 tests/test_approval_api.py ...........                                   [  4%]
@@ -30,16 +31,17 @@ tests/test_response_stack.py ....................                        [ 86%]
 tests/test_verifier.py .......................                           [ 95%]
 tests/test_workflow_end_to_end.py ............                           [100%]
 
-============================= 260 passed in 4.28s ==============================
+============================= 260 passed in 3.67s ==============================
 
 # console
 
  RUN  v2.1.9 <repo>/console
 
+ ✓ src/stages.test.ts (7 tests) 2ms
  ✓ src/cost.test.ts (7 tests) 15ms
 
- Test Files  1 passed (1)
-      Tests  7 passed (7)
-   Start at  03:11:48
-   Duration  229ms (transform 22ms, setup 0ms, collect 18ms, tests 15ms, environment 0ms, prepare 58ms)
+ Test Files  2 passed (2)
+      Tests  14 passed (14)
+   Start at  17:08:41
+   Duration  224ms (transform 41ms, setup 0ms, collect 50ms, tests 17ms, environment 0ms, prepare 108ms)
 

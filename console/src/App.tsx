@@ -3,27 +3,57 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, fetchIncident, isFixtureMode, submitDecisions } from "./api";
 import { AuditTrail } from "./components/AuditTrail";
 import { BlastRadiusPanel } from "./components/BlastRadiusPanel";
-import { CostAvoided } from "./components/CostAvoided";
 import { EndStatePanel } from "./components/EndStatePanel";
 import { PlanPanel } from "./components/PlanPanel";
 import { Timeline } from "./components/Timeline";
+import { WorkflowRail } from "./components/WorkflowRail";
+import { Landing } from "./Landing";
 import { actionSignature } from "./signature";
 import type { Decision, Incident } from "./types";
 
 const DEFAULT_INCIDENT_ID = "inc-AKIA" + "IOSFODNN7EXAMPLE";
 const REFRESH_MS = 5000;
 
+type View = "landing" | "console";
+
 function incidentIdFromLocation(): string {
   const fromQuery = new URLSearchParams(window.location.search).get("incident");
   return fromQuery ?? DEFAULT_INCIDENT_ID;
 }
 
+// A named incident is a request for that incident, so it opens the console directly and
+// a shared link keeps working. Everything else starts on the public page.
+function viewFromLocation(): View {
+  if (window.location.hash === "#console") return "console";
+  if (new URLSearchParams(window.location.search).has("incident")) return "console";
+  return "landing";
+}
+
 export function App() {
   const incidentId = useMemo(incidentIdFromLocation, []);
+  const [view, setView] = useState<View>(viewFromLocation);
   const [incident, setIncident] = useState<Incident | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setView(viewFromLocation());
+    window.addEventListener("popstate", sync);
+    window.addEventListener("hashchange", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("hashchange", sync);
+    };
+  }, []);
+
+  const go = useCallback((next: View) => {
+    const url =
+      next === "console" ? "#console" : window.location.pathname + window.location.search;
+    window.history.pushState(null, "", url);
+    setView(next);
+    window.scrollTo(0, 0);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -37,20 +67,24 @@ export function App() {
     }
   }, [incidentId]);
 
+  // Nothing is fetched while the public page is showing; opening the console starts it.
   useEffect(() => {
+    if (view !== "console") return;
     void load();
     const timer = window.setInterval(() => void load(), REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [load]);
+  }, [view, load]);
 
-  const needsHuman = useMemo(() => {
-    const tiers = new Map(incident?.tiers.map((tier) => [tier.action_type, tier.tier]) ?? []);
-    return (actionType: string) => tiers.get(actionType) !== "automatic";
+  const tierFor = useMemo(() => {
+    const tiers = new Map(incident?.tiers.map((tier) => [tier.action_type, tier]) ?? []);
+    return (actionType: string) => tiers.get(actionType);
   }, [incident]);
 
   const approvable = incident?.verification?.approved ?? [];
   const undecided = approvable.filter(
-    (item) => needsHuman(item.action.action_type) && !decisions[actionSignature(item.action)],
+    (item) =>
+      tierFor(item.action.action_type)?.tier !== "automatic" &&
+      !decisions[actionSignature(item.action)],
   ).length;
 
   async function submit() {
@@ -70,72 +104,105 @@ export function App() {
     }
   }
 
+  if (view === "landing") return <Landing onOpenConsole={() => go("console")} />;
+
   if (!incident) {
     return (
-      <main className="shell">
-        <h1 className="wordmark">KILLSWITCH</h1>
-        {error ? <p className="error">{error}</p> : <p className="muted">Loading incident…</p>}
-      </main>
+      <div className="console">
+        <header className="console-head">
+          <div className="console-head-inner">
+            <button className="btn btn-outline btn-xs" onClick={() => go("landing")}>
+              &larr; SITE
+            </button>
+            <p className="wordmark">KILLSWITCH</p>
+            <span className="console-id">{incidentId}</span>
+          </div>
+        </header>
+        <div className="loading">
+          {error ? (
+            <p className="banner banner-error">{error}</p>
+          ) : (
+            <p>Loading incident…</p>
+          )}
+        </div>
+      </div>
     );
   }
 
-  const decided = Object.keys(decisions).length > 0;
   const awaiting = incident.status === "awaiting_approval";
+  const decided = Object.keys(decisions).length > 0;
 
   return (
-    <main className="shell">
-      <header className="header">
-        <div>
-          <h1 className="wordmark">KILLSWITCH</h1>
-          <p className="muted mono">{incident.incident_id}</p>
+    <div className="console">
+      <header className="console-head">
+        <div className="console-head-inner">
+          <button className="btn btn-outline btn-xs" onClick={() => go("landing")}>
+            &larr; SITE
+          </button>
+          <p className="wordmark">KILLSWITCH</p>
+          <span className="console-id">{incident.incident_id}</span>
+          <div className="spacer" />
+          {isFixtureMode() && <span className="mode-chip">FIXTURE MODE</span>}
+          <span className={`status-chip status-${incident.status}`}>
+            {incident.status.replace(/_/g, " ").toUpperCase()}
+          </span>
         </div>
-        <span className={`status status-${incident.status}`}>
-          {incident.status.replace(/_/g, " ")}
-        </span>
       </header>
 
-      {isFixtureMode() && (
-        <p className="banner">
-          Fixture mode: this screen is rendering a bundled example incident, not live AWS data.
-        </p>
-      )}
-      {error && <p className="error">{error} — showing the last data that loaded.</p>}
+      <div className="shell">
+        <WorkflowRail incident={incident} undecided={undecided} />
 
-      <Timeline incident={incident} />
-      <CostAvoided incident={incident} />
+        <main className="main">
+          {isFixtureMode() && (
+            <p className="banner">
+              Fixture mode: this screen is rendering a bundled example incident, not live AWS
+              data.
+            </p>
+          )}
+          {error && (
+            <p className="banner banner-error">{error} — showing the last data that loaded.</p>
+          )}
 
-      <div className="columns">
-        <BlastRadiusPanel incident={incident} />
-        <PlanPanel
-          incident={incident}
-          decisions={decisions}
-          needsHuman={needsHuman}
-          onDecide={(signature, decision) =>
-            setDecisions((current) => ({ ...current, [signature]: decision }))
-          }
-          disabled={!awaiting || submitting}
-        />
+          <Timeline incident={incident} />
+          <BlastRadiusPanel incident={incident} />
+          <PlanPanel
+            incident={incident}
+            decisions={decisions}
+            tierFor={tierFor}
+            onDecide={(signature, decision) =>
+              setDecisions((current) => ({ ...current, [signature]: decision }))
+            }
+            disabled={!awaiting || submitting}
+            settled={!awaiting}
+          />
+          <EndStatePanel incident={incident} />
+          <AuditTrail incident={incident} />
+        </main>
       </div>
 
       {awaiting && (
         <div className="submit-bar">
-          <p className="muted">
-            {undecided > 0
-              ? `${undecided} action${undecided === 1 ? "" : "s"} still need a decision.`
-              : "Every action has a decision."}
-          </p>
-          <button
-            className="primary"
-            onClick={() => void submit()}
-            disabled={!decided || submitting}
-          >
-            {submitting ? "Sending…" : "Send decisions"}
-          </button>
+          <div className="submit-bar-inner">
+            <span className={undecided > 0 ? "submit-count submit-count-pending" : "submit-count"}>
+              {undecided > 0
+                ? `${undecided} action${undecided === 1 ? "" : "s"} still need${
+                    undecided === 1 ? "s" : ""
+                  } a decision.`
+                : "Every action has a decision."}
+            </span>
+            <span className="submit-scope">
+              Every decision is scoped to this action and this approval round.
+            </span>
+            <div className="spacer" />
+            <button
+              onClick={() => void submit()}
+              disabled={!decided || undecided > 0 || submitting}
+            >
+              {submitting ? "Sending…" : "Send Decisions"}
+            </button>
+          </div>
         </div>
       )}
-
-      <EndStatePanel incident={incident} />
-      <AuditTrail incident={incident} />
-    </main>
+    </div>
   );
 }

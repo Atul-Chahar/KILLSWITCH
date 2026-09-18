@@ -8,9 +8,9 @@ export function CostAvoided({ incident }: { incident: Incident }) {
   const estimate = estimateAvoidedCost(resources);
 
   return (
-    <section className="panel estimate">
+    <section className="estimate">
       <p className="estimate-value">{formatUsd(estimate.totalUsd)}</p>
-      <p className="muted small">
+      <p className="estimate-note">
         Estimated cost avoided: {estimate.instanceCount} instance
         {estimate.instanceCount === 1 ? "" : "s"} × {ASSUMED_HOURS} hours ×{" "}
         {formatUsd(estimate.hourlyRate)}/hour. An estimate at list price, not a measurement.

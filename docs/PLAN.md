@@ -113,10 +113,37 @@ This screen is the Best UI entry. Treat it as a product, not a form.
       "written by the model, not evidence" block
 - [x] Fixture mode, so the screen can be rehearsed without an AWS account, with a banner
       saying so on screen rather than passing fixtures off as live data
-- **Proof:** `make check` type-checks, tests and builds it. 50 KB gzipped, no component library.
+- **Proof:** `make check` type-checks, tests and builds it. 56 KB gzipped, no component library.
 - **Still unproven:** there is no live URL. Nothing is deployed, Cognito has no users, and the
   approve button has never released a real task token.
 - **Commit:** `feat: operator console for approval and audit`
+
+### Phase 6b — The design, implemented (Fri 18)
+
+The Claude Design source (`KILLSWITCH.dc.html`) covers both a public page and a redesigned
+console. Implemented in the existing React + Vite + TypeScript app — no new dependency, no
+Next.js — because the stack is fixed and the console ships through Amplify.
+
+- [x] Public page at `/`: the problem, the three-stage safety model, the guard table and the
+      demo slot. The console opens at `/#console`, and `?incident=<id>` still opens it directly
+- [x] Every factual claim on that page checked against the repository before shipping it:
+      `tools=[]` and `limits={"turns": 1}` in `narrate/agent.py`, the Cedar policy file, the
+      guard module and 21 verifier test functions all exist as named
+- [x] Console rebuilt to the design: workflow rail, tinted panel heads, per-action cards
+- [x] `console/src/stages.ts` + 7 tests. A stage is ticked because the record carries what
+      that stage produces, never because the status field says so, and an **unconfirmed** end
+      state leaves Confirm unfinished rather than rounding up to success
+- [x] The prototype's scenario tabs were **not** implemented. They switch between invented
+      incident states, and this console renders what the backend proved
+- **Two real bugs found and fixed while doing it.** Fixture mode's refresh timer handed back
+  the untouched fixture five seconds after an approval, wiping the contained screen off the
+  demo; the fixture now persists what was submitted. And it never wrote the before/after audit
+  entries that `containment/actions.py` writes, so the rail showed Contain unfinished on an
+  incident that said CONTAINED.
+- **Proof:** `make check`. Screenshots of both views, desktop and 390px, in `evidence/`.
+- **Still unproven:** no real device has rendered the phone layout — the capture browser
+  pinned its viewport width, so the mobile shot is a 390px iframe.
+- **Commit:** `feat: implement the KILLSWITCH design — public page and rebuilt console`
 
 ## Phase 7 — The narrator agent (2 h, Sat 19)
 

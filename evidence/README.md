@@ -4,10 +4,12 @@ What is in here, and — just as importantly — what is not.
 
 | File | What it is | What it proves |
 |---|---|---|
-| `test-output.txt` | A full `pytest -v` run plus the console's vitest run | 260 Python tests and 7 console tests pass. Every AWS client in them is an in-memory fake and every Strands agent is a stub |
+| `test-output.txt` | A full `pytest` run plus the console's vitest run | 260 Python tests and 14 console tests pass. Every AWS client in them is an in-memory fake and every Strands agent is a stub |
 | `state-machine-definition.json` | The Step Functions definition CDK **synthesizes** | The order of states, that the approval step is `lambda:invoke.waitForTaskToken`, and that an unconfirmed end state goes to `Fail`, not `Succeed` |
-| `console-incident-fixture-mode.jpg` | The operator console, running locally against the bundled fixture | The incident view: timeline, blast radius, cost estimate, model prose labelled as untrusted, and the instance with no proposed action highlighted |
+| `landing-page.jpg` | The public page at `/`, running locally | The pitch, the three AWS services named, and the console preview that opens the real thing |
+| `console-incident-fixture-mode.jpg` | The operator console, running locally against the bundled fixture | The incident view: the workflow rail with Approve as the live stage, timeline, blast radius, cost estimate, model prose labelled as untrusted, and the instance with no proposed action highlighted |
 | `console-verifier-rejection-fixture-mode.jpg` | The same screen, scrolled to the plan | The verifier striking out `i-0999999999ffffff9` with "this leaked key never created it", next to the two actions it approved |
+| `console-and-landing-mobile-390px.png` | Both views rendered at a 390px viewport | The phone layout: the rail unsticks and stacks, the nav collapses, and neither view scrolls sideways |
 
 ## What is missing, and why
 
@@ -17,9 +19,11 @@ What is in here, and — just as importantly — what is not.
 - **The console screenshots are fixture mode**, and say so on screen in a banner. Nothing
   is deployed, Cognito has no users, and the approve button has never released a real task
   token. They show the screen, not a working system.
-- **There is no mobile screenshot.** The window resize did not apply during capture. The
-  console's phone layout is exercised by CSS at widths under 860px and has not been
-  photographed. Capture it by hand: `cd console && npm run dev`, then a narrow window.
+- **The mobile screenshot was taken in a 390px iframe**, not on a phone and not in a
+  resized window — the capture browser pinned its viewport width regardless of the window
+  size. The CSS media queries are the same ones a phone would match, and the layout was
+  checked for sideways scroll at 360, 390, 700, 860, 1000 and 1440px, but no real device
+  has rendered it.
 - **No CloudTrail evidence, no Bedrock response, no terminated instance.** All of that
   needs a run in the demo account.
 
@@ -28,5 +32,5 @@ What is in here, and — just as importantly — what is not.
 ```bash
 make install && make console-install
 make check
-cd console && npm run dev        # the console in fixture mode, on localhost
+cd console && npm run dev        # the public page and the console, in fixture mode
 ```

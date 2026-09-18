@@ -5,17 +5,21 @@ export function AuditTrail({ incident }: { incident: Incident }) {
 
   return (
     <section className="panel">
-      <div className="panel-head">
+      <div className="panel-head head-ink">
         <h2>Audit trail</h2>
-        <span className="pill">{incident.audit.length} entries</span>
+        <span className="panel-tag panel-tag-invert">
+          {incident.audit.length} {incident.audit.length === 1 ? "ENTRY" : "ENTRIES"}
+        </span>
       </div>
       <ol className="audit">
         {incident.audit.map((entry) => (
           <li key={entry.sk}>
-            <span className={`chip stage-${entry.stage}`}>{entry.stage}</span>
-            <span className="mono">{entry.action_signature}</span>
-            <time className="mono muted">{entry.recorded_at.slice(11, 19)}</time>
-            {entry.outcome && <span className="muted small">{entry.outcome}</span>}
+            <span className={`audit-stage stage-${entry.stage}`}>
+              {entry.stage.toUpperCase()}
+            </span>
+            <span className="audit-sig">{entry.action_signature}</span>
+            <time className="audit-time">{entry.recorded_at.slice(11, 19)}</time>
+            {entry.outcome && <span className="audit-outcome">{entry.outcome}</span>}
           </li>
         ))}
       </ol>

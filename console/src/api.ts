@@ -41,8 +41,13 @@ export function isFixtureMode(): boolean {
   return USE_FIXTURE;
 }
 
+// Fixture mode has to stand in for a backend that remembers. Without this the refresh
+// timer would hand back the untouched fixture a few seconds after an approval and wipe
+// the contained screen off the demo.
+let fixtureState: Incident | null = null;
+
 export async function fetchIncident(incidentId: string): Promise<Incident> {
-  if (USE_FIXTURE) return structuredClone(FIXTURE_INCIDENT);
+  if (USE_FIXTURE) return structuredClone(fixtureState ?? FIXTURE_INCIDENT);
   return request<Incident>(`/incidents/${encodeURIComponent(incidentId)}`);
 }
 
@@ -51,10 +56,18 @@ export async function submitDecisions(
   decisions: DecisionSubmission[],
 ): Promise<Incident> {
   if (USE_FIXTURE) {
-    // Mirrors what the backend does, so a rehearsal exercises the same screens.
+    // Mirrors what the backend does, so a rehearsal exercises the same screens: an end
+    // state re-read from AWS, and the before/after pair that containment/actions.py
+    // writes for every action it runs. A denied action never reaches containment, so it
+    // leaves no audit entry at all.
     const incident = structuredClone(FIXTURE_INCIDENT);
     const approved = decisions.filter((item) => item.state === "approved");
     incident.status = approved.length > 0 ? "contained" : "detected";
+
+    const observedFor = (actionType: string) =>
+      actionType === "deactivate_key" ? "Inactive" : "shutting-down";
+    const startedAt = Date.parse(incident.detected_at) + 150_000;
+
     incident.end_state = {
       incident_id: incident.incident_id,
       targets: approved.map((item) => {
@@ -63,13 +76,41 @@ export async function submitDecisions(
           action_type,
           target,
           region: null,
-          observed_state: action_type === "deactivate_key" ? "Inactive" : "shutting-down",
+          observed_state: observedFor(action_type),
           confirmed: true,
           aws_error_code: null,
         };
       }),
     };
-    return incident;
+
+    approved.forEach((item, index) => {
+      const [action_type = ""] = item.action_signature.split(":");
+      const before = new Date(startedAt + index * 4000).toISOString();
+      const after = new Date(startedAt + index * 4000 + 2000).toISOString();
+      incident.audit.push(
+        {
+          incident_id: incident.incident_id,
+          sk: `audit#${before}#${index * 2 + 1}#fixture-before`,
+          stage: "before",
+          action_signature: item.action_signature,
+          recorded_at: before,
+          outcome: null,
+          details: {},
+        },
+        {
+          incident_id: incident.incident_id,
+          sk: `audit#${after}#${index * 2 + 2}#fixture-after`,
+          stage: "after",
+          action_signature: item.action_signature,
+          recorded_at: after,
+          outcome: observedFor(action_type),
+          details: {},
+        },
+      );
+    });
+
+    fixtureState = incident;
+    return structuredClone(incident);
   }
   return request<Incident>(`/incidents/${encodeURIComponent(incidentId)}/decisions`, {
     method: "POST",

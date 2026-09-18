@@ -110,11 +110,17 @@ make console-install          # npm install inside console/
 make check                    # secrets, ruff, mypy, pytest, console tests, console build
 ```
 
-To see the console without an AWS account:
+To see it without an AWS account:
 
 ```bash
 cd console && npm run dev     # fixture mode, with a banner saying so on screen
 ```
+
+That serves two views out of one React app. `/` is the public page — the problem, the
+three-stage safety model and the guard table. `/#console` is the operator console, which
+opens on the bundled fixture: two instances in two regions, one action the verifier struck
+out, and one resource the plan proposed nothing for. A named incident (`?incident=<id>`)
+opens the console directly.
 
 Every AWS command — creating the demo account, deploying the four stacks, minting the demo
 key, running the attack and recording the video — is a human's, and is written out step by
@@ -124,7 +130,7 @@ step in [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
 ```bash
 make test           # 260 Python tests
-make check          # the full gate, including the console
+make check          # the full gate, including the console's 14 tests
 ```
 
 The tests worth looking at:
@@ -135,7 +141,7 @@ The tests worth looking at:
 - `tests/test_response_stack.py` — the workflow's shape as a safety property, asserted on the synthesized template.
 - `tests/test_workflow_end_to_end.py` — the whole chain, investigate to confirm, against in-memory AWS. An approved action runs, a denied one leaves its target untouched, and the incident ends `failed` on the screen because that instance is still running. This file found three seam bugs the module tests could not see.
 
-Saved output and console screenshots are in [evidence/](evidence/).
+Saved output and screenshots of both views are in [evidence/](evidence/).
 
 ## Limitations
 

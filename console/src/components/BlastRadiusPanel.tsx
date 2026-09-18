@@ -22,44 +22,43 @@ export function BlastRadiusPanel({ incident }: { incident: Incident }) {
 
   return (
     <section className="panel">
-      <div className="panel-head">
+      <div className="panel-head head-blue">
         <h2>What the key did</h2>
-        <span className="pill evidence">From CloudTrail</span>
+        <span className="panel-tag">FROM CLOUDTRAIL</span>
       </div>
 
       {!radius || radius.resources.length === 0 ? (
-        <p className="muted">No created resources found in the searched window.</p>
+        <p className="panel-empty">No created resources found in the searched window.</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Resource</th>
-              <th>Region</th>
-              <th>Created</th>
-              <th>Source IP</th>
-            </tr>
-          </thead>
-          <tbody>
-            {radius.resources.map((resource) => (
-              <tr
+        <div>
+          <div className="res-head">
+            <span>RESOURCE</span>
+            <span>REGION</span>
+            <span>CREATED</span>
+            <span>SOURCE IP</span>
+          </div>
+          {radius.resources.map((resource) => {
+            const isUntouched = untouched.has(resource.resource_id);
+            return (
+              <div
+                className={isUntouched ? "res-row res-row-gap" : "res-row"}
                 key={resource.event_id}
-                className={untouched.has(resource.resource_id) ? "gap" : ""}
               >
-                <td className="mono">
-                  {resource.resource_id}
-                  {untouched.has(resource.resource_id) && (
-                    <span className="chip warn" title="The plan proposed nothing for this resource">
-                      no action proposed
+                <span className="res-id">
+                  <span>{resource.resource_id}</span>
+                  {isUntouched && (
+                    <span className="res-flag" title="The plan proposed nothing for this resource">
+                      NO ACTION PROPOSED
                     </span>
                   )}
-                </td>
-                <td>{resource.region}</td>
-                <td className="mono">{resource.event_time.slice(11, 19)}</td>
-                <td className="mono">{resource.source_ip}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </span>
+                <span className="res-region">{resource.region}</span>
+                <span className="res-cell">{resource.event_time.slice(11, 19)}</span>
+                <span className="res-cell">{resource.source_ip}</span>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {radius && radius.problems.length > 0 && (
@@ -67,7 +66,7 @@ export function BlastRadiusPanel({ incident }: { incident: Incident }) {
           <strong>Evidence is incomplete.</strong> Treat this list as a floor, not a total.
           <ul>
             {radius.problems.map((problem, index) => (
-              <li key={index} className="mono">
+              <li key={index}>
                 {problem.kind} in {problem.region}
                 {problem.aws_error_code ? ` (${problem.aws_error_code})` : ""}
               </li>
@@ -77,7 +76,7 @@ export function BlastRadiusPanel({ incident }: { incident: Incident }) {
       )}
 
       {radius && (
-        <p className="muted small">
+        <p className="panel-foot">
           Searched {radius.regions_searched.join(", ")} between {radius.window_start.slice(11, 19)}{" "}
           and {radius.window_end.slice(11, 19)} UTC.
         </p>

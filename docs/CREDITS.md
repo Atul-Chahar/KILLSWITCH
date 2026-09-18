@@ -13,6 +13,8 @@ Open-source libraries, templates and prior art we used or learned from. Add a ro
 | pytest, ruff, mypy, uv | pytest-dev (MIT), astral-sh (MIT), python/mypy (MIT), astral-sh/uv (MIT/Apache 2.0) | The `make check` gate |
 | Cedar | cedar-policy/cedar (Apache 2.0), via Amazon Verified Permissions | The policy that says destructive actions need a human |
 | ECC | affaan-m/ecc (MIT) | Engineering workflow for Claude Code |
+| KILLSWITCH design source | Our own Claude Design project (`KILLSWITCH.dc.html`) | The layout, palette and copy of the public page and the console. Implemented by hand in React; no code was copied from it, since the source is a template for a different runtime |
+| Instrument Serif, DM Sans, IBM Plex Mono | Google Fonts (SIL Open Font License 1.1) | The three typefaces the design specifies |
 
 AWS's documented example access key `AKIAIOSFODNN7EXAMPLE` is used throughout the tests and
 fixtures on purpose: it is published by AWS as an example, it is not a credential, and using
