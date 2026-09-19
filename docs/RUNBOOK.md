@@ -26,6 +26,31 @@ Also do these by hand, once:
 - Create the dedicated demo AWS account, nothing else in it.
 - Set a budget alarm at a low amount, with an email alert.
 
+## Bootstrap, once per account and region
+
+CDK cannot deploy into an account it has never prepared. This creates the staging bucket
+and roles CDK uploads assets through. It is idempotent, so running it twice is harmless.
+
+```bash
+export $(grep -v '^#' .env | xargs)
+export CDK_DEFAULT_ACCOUNT=$DEMO_ACCOUNT_ID
+npx aws-cdk@2 bootstrap aws://$DEMO_ACCOUNT_ID/$AWS_REGION
+```
+
+Skip this and the first `cdk deploy` fails with *"SSM parameter
+/cdk-bootstrap/hnb659fds/version not found. Has the environment been bootstrapped?"* —
+which looks alarming and means nothing more than this step being missed.
+
+All four stacks deploy to `$AWS_REGION`, so that one region is enough. Bootstrap
+`us-east-1` as well only if you later move the detection stack there to make AWS's real
+quarantine event reachable, which is a limitation the README already records.
+
+Check your identity is the demo account before anything else:
+
+```bash
+aws sts get-caller-identity        # Account must equal DEMO_ACCOUNT_ID
+```
+
 ## Phase 1 — the attack
 
 Deploy the cage the demo user lives in:
@@ -35,6 +60,10 @@ export $(grep -v '^#' .env | xargs)      # or set them however you prefer
 export CDK_DEFAULT_ACCOUNT=$DEMO_ACCOUNT_ID
 npx aws-cdk@2 deploy KillswitchDemoTarget       # cdk.json already points at infra/app.py
 ```
+
+This stack creates an IAM user and policy, so CDK stops and asks you to confirm the
+security changes before it proceeds. Read the diff it prints — it should contain
+`ec2:RunInstances` conditioned on `t3.micro`, and nothing else. Then approve it.
 
 Mint the demo key yourself. CDK never creates it, so it cannot leak through a
 CloudFormation template or a stack output:
