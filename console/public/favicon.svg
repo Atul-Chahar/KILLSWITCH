@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="KILLSWITCH">
+  <rect width="64" height="64" fill="#c8341a"/>
+  <g fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round">
+    <path d="M20.5 25a17 17 0 1 0 23 0"/>
+    <path d="M32 13v18"/>
+  </g>
+</svg>

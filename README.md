@@ -8,7 +8,7 @@
 
 [![Live Console](https://img.shields.io/badge/live_console-online-brightgreen?logo=render&logoColor=white)](https://killswitch-console.onrender.com/#console)
 [![Demo Video](https://img.shields.io/badge/demo_video-YouTube-red?logo=youtube&logoColor=white)](https://youtu.be/UeyZnTPyJDg)
-[![Tests](https://img.shields.io/badge/tests-374_passed-success)](tests/)
+[![Tests](https://img.shields.io/badge/tests-404_passed-success)](tests/)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![AWS CDK v2](https://img.shields.io/badge/AWS_CDK-v2-FF9900?logo=amazon-aws&logoColor=white)](infra/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](docs/CREDITS.md)
@@ -25,9 +25,10 @@ An engineer commits an active AWS access key to a git repository. Automated scra
 
 | Deliverable | URL | Details |
 |---|---|---|
-| **Live Web Console** | [https://killswitch-console.onrender.com/#console](https://killswitch-console.onrender.com/#console) | Deployed operator console with interactive fixture mode & demo workflows |
+| **Live Web Console** | [https://killswitch-console.onrender.com](https://killswitch-console.onrender.com) | Scan any public GitHub repository for exposed credentials, live in the browser. No sign-up, no AWS account. |
+| **Worked Incident** | [/#console](https://killswitch-console.onrender.com/#console) | The full seven-stage response on a bundled incident: blast radius, the verifier striking out an action, and the approval gate. |
 | **Demo Video (3 min)** | [https://youtu.be/UeyZnTPyJDg](https://youtu.be/UeyZnTPyJDg) | 3-minute video walkthrough (leak, attack, verifier rejection, containment) |
-| **Source Code** | [https://github.com/Atul-Chahar/KILLSWITCH](https://github.com/Atul-Chahar/KILLSWITCH) | Full repository with 4 CDK stacks, pure Python verifier, and 374 automated tests |
+| **Source Code** | [https://github.com/Atul-Chahar/KILLSWITCH](https://github.com/Atul-Chahar/KILLSWITCH) | Full repository with 4 CDK stacks, pure Python verifier, and 404 automated tests |
 
 ### Deep-Dive Technical Documentation
 
@@ -125,9 +126,9 @@ Every operation in KILLSWITCH maps strictly to one of these three boundaries:
 
 | Phase | Responsibility | Implementation File | Safety Guarantee |
 |---|---|---|---|
-| **The model proposes** | Structured reasoning over forensic evidence | [narrate/agent.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/narrate/agent.py)<br/>[narrate/schema.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/narrate/schema.py) | Constructed with `tools=[]`. It possesses no tools and cannot execute code or AWS APIs. Locked to `limits={"turns": 1}` so it cannot retry past schema failures. |
-| **Plain code verifies** | Mathematical provenance checking | [verifier/verify.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/verifier/verify.py)<br/>[verifier/plan.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/verifier/plan.py) | Pure Python functions. Zero network calls, zero AWS SDK imports, zero model SDK imports. Enforced by AST linting tests in [tests/test_verifier.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_verifier.py). Drops any action targeting resources not created by the leaked key. |
-| **A human approves** | Authorization and execution gating | [authorize/decide.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/authorize/decide.py)<br/>[workflow/approval_api.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/workflow/approval_api.py)<br/>[containment/guard.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/containment/guard.py) | Step Functions suspends on `waitForTaskToken`. Destructive containment functions refuse execution without an approval token scoped to that exact action ID and approval round. |
+| **The model proposes** | Structured reasoning over forensic evidence | [narrate/agent.py](narrate/agent.py)<br/>[narrate/schema.py](narrate/schema.py) | Constructed with `tools=[]`. It possesses no tools and cannot execute code or AWS APIs. Locked to `limits={"turns": 1}` so it cannot retry past schema failures. |
+| **Plain code verifies** | Mathematical provenance checking | [verifier/verify.py](verifier/verify.py)<br/>[verifier/plan.py](verifier/plan.py) | Pure Python functions. Zero network calls, zero AWS SDK imports, zero model SDK imports. Enforced by AST linting tests in [tests/test_verifier.py](tests/test_verifier.py). Drops any action targeting resources not created by the leaked key. |
+| **A human approves** | Authorization and execution gating | [authorize/decide.py](authorize/decide.py)<br/>[workflow/approval_api.py](workflow/approval_api.py)<br/>[containment/guard.py](containment/guard.py) | Step Functions suspends on `waitForTaskToken`. Destructive containment functions refuse execution without an approval token scoped to that exact action ID and approval round. |
 
 ---
 
@@ -161,17 +162,17 @@ Every service listed below is part of the automated pipeline and visible in the 
 
 | AWS Service | Operational Function | Implementation Source |
 |---|---|---|
-| **Amazon API Gateway** | Receives HMAC-signed GitHub push webhooks and serves the Cognito-authenticated operator API | [infra/stacks/detection.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/infra/stacks/detection.py)<br/>[infra/stacks/console_api.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/infra/stacks/console_api.py) |
-| **Amazon EventBridge** | Ingests AWS Compromised Key Quarantine events to trigger automated response | [infra/stacks/detection.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/infra/stacks/detection.py)<br/>[detect/quarantine.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/detect/quarantine.py) |
-| **AWS Lambda** | Executes isolated stages: detection, CloudTrail polling, agent narration, verifier logic, and containment | [detect/handler.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/detect/handler.py)<br/>[workflow/tasks.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/workflow/tasks.py) |
-| **AWS Step Functions** | Coordinates state execution, handles evidence polling loops, and halts for operator decisions via `waitForTaskToken` | [infra/stacks/response.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/infra/stacks/response.py) |
-| **Amazon Bedrock** | Hosts foundation models accessed by Strands Agents SDK to synthesize incident summaries and plans | [narrate/agent.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/narrate/agent.py) |
-| **Amazon Verified Permissions** | Evaluates Cedar policies to enforce human approval requirements for destructive actions | [authorize/decide.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/authorize/decide.py)<br/>[authorize/policies/containment.cedar](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/authorize/policies/containment.cedar) |
-| **AWS CloudTrail** | Provides immutable management audit logs queried by `LookupEvents` across regions | [investigate/cloudtrail.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/investigate/cloudtrail.py) |
-| **Amazon DynamoDB** | Stores incident states, task tokens, and append-only audit entries; streams new records via DynamoDB Streams | [shared/incidents.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/shared/incidents.py)<br/>[workflow/start.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/workflow/start.py) |
-| **AWS IAM** | Resolves key ownership, deactivates compromised credentials, and attaches inline session-revocation deny policies | [investigate/identify.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/investigate/identify.py)<br/>[containment/actions.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/containment/actions.py) |
-| **Amazon EC2** | Targets attacker-spawned instances in `ap-south-1` and `us-east-1` for verified termination | [containment/actions.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/containment/actions.py) |
-| **Amazon Cognito & AWS Amplify** | Authenticates incident operators and hosts the React single-page management console | [infra/stacks/console_api.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/infra/stacks/console_api.py)<br/>[console/src/App.tsx](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/console/src/App.tsx) |
+| **Amazon API Gateway** | Receives HMAC-signed GitHub push webhooks and serves the Cognito-authenticated operator API | [infra/stacks/detection.py](infra/stacks/detection.py)<br/>[infra/stacks/console_api.py](infra/stacks/console_api.py) |
+| **Amazon EventBridge** | Ingests AWS Compromised Key Quarantine events to trigger automated response | [infra/stacks/detection.py](infra/stacks/detection.py)<br/>[detect/quarantine.py](detect/quarantine.py) |
+| **AWS Lambda** | Executes isolated stages: detection, CloudTrail polling, agent narration, verifier logic, and containment | [detect/handler.py](detect/handler.py)<br/>[workflow/tasks.py](workflow/tasks.py) |
+| **AWS Step Functions** | Coordinates state execution, handles evidence polling loops, and halts for operator decisions via `waitForTaskToken` | [infra/stacks/response.py](infra/stacks/response.py) |
+| **Amazon Bedrock** | Hosts foundation models accessed by Strands Agents SDK to synthesize incident summaries and plans | [narrate/agent.py](narrate/agent.py) |
+| **Amazon Verified Permissions** | Evaluates Cedar policies to enforce human approval requirements for destructive actions | [authorize/decide.py](authorize/decide.py)<br/>[authorize/policies/containment.cedar](authorize/policies/containment.cedar) |
+| **AWS CloudTrail** | Provides immutable management audit logs queried by `LookupEvents` across regions | [investigate/cloudtrail.py](investigate/cloudtrail.py) |
+| **Amazon DynamoDB** | Stores incident states, task tokens, and append-only audit entries; streams new records via DynamoDB Streams | [shared/incidents.py](shared/incidents.py)<br/>[workflow/start.py](workflow/start.py) |
+| **AWS IAM** | Resolves key ownership, deactivates compromised credentials, and attaches inline session-revocation deny policies | [investigate/identify.py](investigate/identify.py)<br/>[containment/actions.py](containment/actions.py) |
+| **Amazon EC2** | Targets attacker-spawned instances in `ap-south-1` and `us-east-1` for verified termination | [containment/actions.py](containment/actions.py) |
+| **Amazon Cognito & AWS Amplify** | Authenticates incident operators and hosts the React single-page management console | [infra/stacks/console_api.py](infra/stacks/console_api.py)<br/>[console/src/App.tsx](console/src/App.tsx) |
 
 ---
 
@@ -181,15 +182,15 @@ Every core capability is verified by automated test suites or verifiable reposit
 
 | Capability | Verification Mechanism | Test or Artifact Location |
 |---|---|---|
-| **Secret Scanning & Signature Check** | 36 unit tests for regex patterns, example key exclusion, and HMAC validation | [tests/test_detect_patterns.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_detect_patterns.py)<br/>[tests/test_detect_webhook.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_detect_webhook.py) |
-| **Idempotent Ingestion** | Race condition tests for dual triggers writing identical incident IDs | [tests/test_detect_handler.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_detect_handler.py)<br/>[tests/test_incidents.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_incidents.py) |
-| **CloudTrail Forensic Reconstruction** | Multi-region pagination and typed `EvidenceProblem` handling against synthetic fixtures | [tests/test_blast_radius.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_blast_radius.py)<br/>[tests/test_identify.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_identify.py) |
-| **Verifier Provenance Enforcement** | 41 tests proving rejection of unowned instances, wrong regions, foreign keys, and AST purity | [tests/test_verifier.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_verifier.py)<br/>[tests/test_narrate_adversarial.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_narrate_adversarial.py) |
-| **Human Approval Task Token Gate** | State machine pause tests and token rejection assertions | [tests/test_approval_api.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_approval_api.py)<br/>[tests/test_containment.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_containment.py) |
-| **Token-Gated Containment & Revocation** | Execution refusal without token, key deactivation, instance termination, and session revocation | [tests/test_containment.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_containment.py)<br/>[tests/test_end_state.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_end_state.py) |
-| **Single Blast-Shield IAM Statement** | Synthesized CloudFormation template assertion checking IAM grant count | [tests/test_response_stack.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_response_stack.py) |
-| **End-to-End Incident Lifecycle** | 31 full pipeline integration tests from signed webhook push to confirmed containment | [tests/test_workflow_end_to_end.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_workflow_end_to_end.py)<br/>[tests/test_integration_wiring.py](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/tests/test_integration_wiring.py) |
-| **Operator Console & Workflow Rail** | 16 Vitest tests; desktop, fixture, and 390px mobile visual evidence captures | [console/src/stages.test.ts](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/console/src/stages.test.ts)<br/>[evidence/](file:///Users/mac/.gemini/antigravity-ide/scratch/KILLSWITCH/evidence/) |
+| **Secret Scanning & Signature Check** | 36 unit tests for regex patterns, example key exclusion, and HMAC validation | [tests/test_detect_patterns.py](tests/test_detect_patterns.py)<br/>[tests/test_detect_webhook.py](tests/test_detect_webhook.py) |
+| **Idempotent Ingestion** | Race condition tests for dual triggers writing identical incident IDs | [tests/test_detect_handler.py](tests/test_detect_handler.py)<br/>[tests/test_incidents.py](tests/test_incidents.py) |
+| **CloudTrail Forensic Reconstruction** | Multi-region pagination and typed `EvidenceProblem` handling against synthetic fixtures | [tests/test_blast_radius.py](tests/test_blast_radius.py)<br/>[tests/test_identify.py](tests/test_identify.py) |
+| **Verifier Provenance Enforcement** | 41 tests proving rejection of unowned instances, wrong regions, foreign keys, and AST purity | [tests/test_verifier.py](tests/test_verifier.py)<br/>[tests/test_narrate_adversarial.py](tests/test_narrate_adversarial.py) |
+| **Human Approval Task Token Gate** | State machine pause tests and token rejection assertions | [tests/test_approval_api.py](tests/test_approval_api.py)<br/>[tests/test_containment.py](tests/test_containment.py) |
+| **Token-Gated Containment & Revocation** | Execution refusal without token, key deactivation, instance termination, and session revocation | [tests/test_containment.py](tests/test_containment.py)<br/>[tests/test_end_state.py](tests/test_end_state.py) |
+| **Single Blast-Shield IAM Statement** | Synthesized CloudFormation template assertion checking IAM grant count | [tests/test_response_stack.py](tests/test_response_stack.py) |
+| **End-to-End Incident Lifecycle** | 31 full pipeline integration tests from signed webhook push to confirmed containment | [tests/test_workflow_end_to_end.py](tests/test_workflow_end_to_end.py)<br/>[tests/test_integration_wiring.py](tests/test_integration_wiring.py) |
+| **Operator Console & Workflow Rail** | 16 Vitest tests; desktop, fixture, and 390px mobile visual evidence captures | [console/src/stages.test.ts](console/src/stages.test.ts)<br/>[evidence/](evidence/) |
 
 ---
 
@@ -253,7 +254,7 @@ The 3-minute video demonstration is available on YouTube at **[https://youtu.be/
 | Timestamp | Screen | Event & Voiceover Point |
 |---|---|---|
 | **0:00 – 0:20** | Threat Context | Real-world problem: AWS keys scraped from GitHub in minutes and monetized via unauthorized EC2 clusters. |
-| **0:20 – 0:50** | The Leak & Attack | Git commit with AWS credential pushed. Attacker script (`scripts/demo_attack.sh`) launches `t3.micro` instances in `ap-south-1` and `us-east-1`, plus mints a secondary key. |
+| **0:20 – 0:50** | The Leak & Attack | Git commit with AWS credential pushed. The leaked key launches `t3.micro` instances in `ap-south-1` and `us-east-1`, then mints a secondary key so revoking the leaked one would not end the access. |
 | **0:50 – 1:20** | Detection & Timeline | Webhook catches the leak. Step Functions initiates CloudTrail forensic query. Blast radius table displays discovered attacker resources. |
 | **1:20 – 1:45** | Verifier Rejection | The model proposes actions. Plain code verifier detects an unowned bystander instance (`i-0999999999ffffff9`), striking it out on screen with the reason *"this leaked key never created it"*. |
 | **1:45 – 2:15** | Mobile Approval | Operator reviews the incident on mobile. Approves key deactivation and valid instance terminations. Step Functions releases task token, terminates instances, and revokes sessions. |
@@ -267,7 +268,7 @@ The 3-minute video demonstration is available on YouTube at **[https://youtu.be/
 This section documents the project's boundaries, unverified assumptions, and cut features, expanded in full in [docs/LIMITATIONS.md](docs/LIMITATIONS.md):
 
 ### Execution and Cloud State
-- **Zero live AWS execution to date:** All 374 tests run against in-memory fakes, moto stubs, or synthetic fixtures. No stack has been deployed to live AWS infrastructure.
+- **Zero live AWS execution to date:** All 404 tests run against in-memory fakes, moto stubs, or synthetic fixtures. No stack has been deployed to live AWS infrastructure.
 - **Synthetic CloudTrail fixtures:** `tests/fixtures/*.json` are hand-crafted against AWS documentation rather than captured from real AWS API queries.
 - **Simulated quarantine trigger:** Because the demo repository is private for safety, AWS's public compromised key quarantine is simulated via `scripts/simulate_quarantine.py`.
 
