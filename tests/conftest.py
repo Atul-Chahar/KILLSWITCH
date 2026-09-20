@@ -36,3 +36,8 @@ def lookup() -> ModuleType:
 @pytest.fixture(scope="session")
 def capture_fixture() -> ModuleType:
     return load_script("capture_fixture")
+
+
+@pytest.fixture(scope="session")
+def pick_nim_model() -> ModuleType:
+    return load_script("pick_nim_model")

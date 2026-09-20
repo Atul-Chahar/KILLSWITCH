@@ -152,7 +152,26 @@ Bedrock first, in `$AWS_REGION`, under Model access. The narrator Lambda is gran
 `bedrock:InvokeModel` and nothing else, so an un-enabled model fails the Narrate step with
 an access error rather than falling back to another model.
 
-To rehearse without Bedrock, deploy with `NARRATOR_MODE=rehearsal` and no model id. That narrator writes
+### Using NVIDIA NIM instead of Bedrock
+
+A new AWS account often cannot get Bedrock model access in time. `NARRATOR_MODE=nim`
+runs the same narrator against NVIDIA NIM instead. The verifier, the approval gate and
+containment are all unchanged — only who writes the plan differs.
+
+Pick a model that actually works before deploying. NVIDIA's catalogue is large and most
+of it cannot do tool calling, which structured output needs:
+
+```bash
+export $(grep -v '^#' .env | xargs)
+python scripts/pick_nim_model.py            # test a shortlist, ranked by speed
+python scripts/pick_nim_model.py --all      # test everything the key can reach
+```
+
+It narrates a synthetic incident with each candidate and only passes a model whose plan
+the verifier accepts. Put the winner in `.env` as `NIM_MODEL_ID`, leave `BEDROCK_MODEL_ID`
+blank, and deploy with `NARRATOR_MODE=nim`.
+
+To rehearse without any model at all, deploy with `NARRATOR_MODE=rehearsal` and no model id. That narrator writes
 a fixed plan which always includes one instance the leaked key never created, so the
 verifier strikes it out on camera every time. The console labels that prose
 "Rehearsal narrator, not a model and not evidence", so it can never be shown as a model's
