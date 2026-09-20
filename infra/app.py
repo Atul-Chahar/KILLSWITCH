@@ -51,6 +51,10 @@ response = ResponseStack(
     narrator_mode=os.environ.get("NARRATOR_MODE", ""),
     nvidia_api_key=os.environ.get("NVIDIA_API_KEY", ""),
     nim_model_id=os.environ.get("NIM_MODEL_ID", ""),
+    # Some accounts and regions cannot create a policy store at all. Set
+    # USE_VERIFIED_PERMISSIONS=false to deploy on the strict fallback table instead.
+    use_verified_permissions=os.environ.get("USE_VERIFIED_PERMISSIONS", "true").lower()
+    not in {"false", "0", "no"},
     env=env,
 )
 

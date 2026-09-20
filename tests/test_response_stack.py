@@ -466,3 +466,52 @@ def test_the_narrator_gets_longer_than_the_other_steps(template: Template):
 
     assert narrate["Properties"]["Timeout"] >= 180
     assert all(narrate["Properties"]["Timeout"] > other for other in others)
+
+
+def _response_without_avp(tmp_path, name: str) -> Template:
+    (tmp_path / "workflow").mkdir(exist_ok=True)
+    (tmp_path / "workflow" / "tasks.py").write_text("# stand-in asset for synth\n")
+    app = cdk.App()
+    env = cdk.Environment(account="000000000000", region="ap-south-1")
+    detection = DetectionStack(app, f"{name}Detect", lambda_code_path=str(tmp_path), env=env)
+    return Template.from_stack(
+        ResponseStack(
+            app,
+            f"{name}Response",
+            lambda_code_path=str(tmp_path),
+            incidents_table=detection.incidents,
+            demo_regions=DEMO_REGIONS,
+            narrator_mode=NarratorMode.NIM.value,
+            use_verified_permissions=False,
+            env=env,
+        )
+    )
+
+
+def test_the_workflow_still_deploys_without_verified_permissions(tmp_path):
+    """Cut-list item 1: not every account can create a policy store."""
+    template = _response_without_avp(tmp_path, "NoAvp")
+
+    template.resource_count_is("AWS::VerifiedPermissions::PolicyStore", 0)
+    template.resource_count_is("AWS::VerifiedPermissions::Policy", 0)
+    assert template.find_resources("AWS::StepFunctions::StateMachine")
+
+
+def test_without_a_policy_store_no_task_carries_a_store_id(tmp_path):
+    """CloudFormation drops empty env vars, and os.environ.get() reads absent as "".
+
+    Either way authorize/decide.py takes the strict fallback table, which is the
+    behaviour that matters: destructive actions still need a human.
+    """
+    template = _response_without_avp(tmp_path, "EmptyId")
+
+    for function in template.find_resources("AWS::Lambda::Function").values():
+        variables = function["Properties"]["Environment"]["Variables"]
+        assert not variables.get("VERIFIED_PERMISSIONS_POLICY_STORE_ID")
+
+
+def test_without_a_policy_store_nobody_is_granted_isauthorized(tmp_path):
+    """A grant pointing at a store that does not exist would be dead permission."""
+    statements = _statements_by_sid(_response_without_avp(tmp_path, "NoGrant"))
+
+    assert "AskThePolicyStore" not in statements

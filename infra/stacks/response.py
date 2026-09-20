@@ -83,6 +83,7 @@ class ResponseStack(Stack):
         narrator_mode: str = "",
         nvidia_api_key: str = "",
         nim_model_id: str = "",
+        use_verified_permissions: bool = True,
         **kwargs: object,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -96,31 +97,39 @@ class ResponseStack(Stack):
                 f"NARRATOR_MODE to one of: {', '.join(sorted(model_free_modes))}"
             )
 
-        policy_store = avp.CfnPolicyStore(
-            self,
-            "PolicyStore",
-            validation_settings=avp.CfnPolicyStore.ValidationSettingsProperty(mode="STRICT"),
-            schema=avp.CfnPolicyStore.SchemaDefinitionProperty(
-                cedar_json=self.to_json_string(CEDAR_SCHEMA)
-            ),
-        )
-        avp.CfnPolicy(
-            self,
-            "ContainmentPolicy",
-            policy_store_id=policy_store.attr_policy_store_id,
-            definition=avp.CfnPolicy.PolicyDefinitionProperty(
-                static=avp.CfnPolicy.StaticPolicyDefinitionProperty(
-                    description="Destructive actions are forbidden without a human approval",
-                    statement=CEDAR_POLICY_PATH.read_text(),
-                )
-            ),
-        )
+        # Cut-list item 1 in docs/PLAN.md. Verified Permissions is not enabled on every
+        # account or region — a fresh account gets a 403 "needs a subscription" on create.
+        # Without it the workflow still runs: authorize/decide.py falls back to a table
+        # where anything destructive needs a human, which is the strict direction. The
+        # tiering stays visible in the console either way.
+        policy_store = None
+        policy_store_id = ""
+        if use_verified_permissions:
+            policy_store = avp.CfnPolicyStore(
+                self,
+                "PolicyStore",
+                validation_settings=avp.CfnPolicyStore.ValidationSettingsProperty(mode="STRICT"),
+                schema=avp.CfnPolicyStore.SchemaDefinitionProperty(
+                    cedar_json=self.to_json_string(CEDAR_SCHEMA)
+                ),
+            )
+            avp.CfnPolicy(
+                self,
+                "ContainmentPolicy",
+                policy_store_id=policy_store.attr_policy_store_id,
+                definition=avp.CfnPolicy.PolicyDefinitionProperty(
+                    static=avp.CfnPolicy.StaticPolicyDefinitionProperty(
+                        description="Destructive actions are forbidden without a human approval",
+                        statement=CEDAR_POLICY_PATH.read_text(),
+                    )
+                ),
+            )
 
         code = lambda_.Code.from_asset(lambda_code_path)
         environment = {
             "INCIDENT_TABLE_NAME": incidents_table.table_name,
             "AWS_SECONDARY_REGION": demo_regions[-1],
-            "VERIFIED_PERMISSIONS_POLICY_STORE_ID": policy_store.attr_policy_store_id,
+            "VERIFIED_PERMISSIONS_POLICY_STORE_ID": policy_store_id,
             # Empty is a deploy-time mistake, not a default. narrate/agent.py raises on it
             # rather than quietly asking whichever model the SDK happens to prefer.
             "BEDROCK_MODEL_ID": bedrock_model_id,
@@ -182,13 +191,14 @@ class ResponseStack(Stack):
                 resources=["*"],
             )
         )
-        authorize.add_to_role_policy(
-            iam.PolicyStatement(
-                sid="AskThePolicyStore",
-                actions=["verifiedpermissions:IsAuthorized"],
-                resources=[policy_store.attr_arn],
+        if policy_store is not None:
+            authorize.add_to_role_policy(
+                iam.PolicyStatement(
+                    sid="AskThePolicyStore",
+                    actions=["verifiedpermissions:IsAuthorized"],
+                    resources=[policy_store.attr_arn],
+                )
             )
-        )
         # The only principal in the system that may destroy anything. Its code refuses to
         # act without an approval token, and this is the matching grant.
         #
@@ -343,4 +353,5 @@ class ResponseStack(Stack):
         )
 
         CfnOutput(self, "StateMachineArn", value=self.state_machine.state_machine_arn)
-        CfnOutput(self, "PolicyStoreId", value=policy_store.attr_policy_store_id)
+        if policy_store is not None:
+            CfnOutput(self, "PolicyStoreId", value=policy_store.attr_policy_store_id)
