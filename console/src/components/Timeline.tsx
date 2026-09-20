@@ -1,4 +1,5 @@
 import { elapsedSeconds, formatDuration } from "../cost";
+import { maskActionSignature } from "../mask";
 import type { Incident } from "../types";
 
 type MomentKind = "attack" | "detect" | "verify" | "contain" | "fail";
@@ -30,21 +31,21 @@ function moments(incident: Incident): Moment[] {
   for (const entry of incident.audit) {
     if (entry.stage === "after") {
       found.push({
-        label: `Contained ${entry.action_signature}`,
+        label: `Contained ${maskActionSignature(entry.action_signature)}`,
         at: entry.recorded_at,
         kind: "contain",
       });
     }
     if (entry.stage === "refused") {
       found.push({
-        label: `Refused ${entry.action_signature}`,
+        label: `Refused ${maskActionSignature(entry.action_signature)}`,
         at: entry.recorded_at,
         kind: "verify",
       });
     }
     if (entry.stage === "failed") {
       found.push({
-        label: `Failed ${entry.action_signature}`,
+        label: `Failed ${maskActionSignature(entry.action_signature)}`,
         at: entry.recorded_at,
         kind: "fail",
       });

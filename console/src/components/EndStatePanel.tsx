@@ -1,3 +1,4 @@
+import { maskCredential } from "../mask";
 import type { Incident } from "../types";
 
 export function EndStatePanel({ incident }: { incident: Incident }) {
@@ -21,7 +22,7 @@ export function EndStatePanel({ incident }: { incident: Incident }) {
       {endState.targets.map((target) => (
         <div className="end-row" key={`${target.action_type}-${target.target}`}>
           <span className="end-action">{target.action_type.replace(/_/g, " ")}</span>
-          <span className="end-target">{target.target}</span>
+          <span className="end-target" title={maskCredential(target.target) !== target.target ? "Redacted AWS credential" : undefined}>{maskCredential(target.target)}</span>
           <span className={target.confirmed ? "end-observed" : "end-observed end-observed-bad"}>
             {target.observed_state ?? target.aws_error_code ?? "unknown"}
           </span>

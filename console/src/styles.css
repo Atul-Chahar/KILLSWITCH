@@ -450,6 +450,7 @@ button {
   font: 400 12.5px/1.3 var(--mono);
   color: var(--blue);
   word-break: break-all;
+  letter-spacing: 0.03em;
 }
 .peek-card-evidence {
   display: block;
@@ -1363,6 +1364,7 @@ button {
   font: 400 12.5px/1.3 var(--mono);
   color: var(--blue);
   word-break: break-all;
+  letter-spacing: 0.03em;
 }
 .action-region {
   font: 500 10.5px/1 var(--mono);
@@ -1638,6 +1640,185 @@ button {
   display: inline-block;
 }
 
+/* ---------- repository scan ---------- */
+
+.watch {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 56px 34px 96px;
+  animation: ksIn 0.25s ease-out;
+}
+.watch-title {
+  margin: 14px 0 0;
+  max-width: 20ch;
+  font: 400 clamp(30px, 3.4vw, 46px) / 1.08 var(--serif);
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+.watch-lede {
+  margin: 16px 0 0;
+  max-width: 62ch;
+  font: 400 15px/1.65 var(--sans);
+  color: var(--body);
+}
+.watch-form {
+  display: flex;
+  gap: 10px;
+  margin-top: 30px;
+  flex-wrap: wrap;
+}
+.watch-input {
+  flex: 1 1 320px;
+  min-width: 0;
+  padding: 13px 15px;
+  border: 1px solid var(--ink);
+  background: #fff;
+  font: 400 15px/1.2 var(--mono);
+  color: var(--ink);
+}
+.watch-input::placeholder {
+  color: var(--navy-mute-2);
+}
+.watch-input:disabled {
+  background: var(--paper);
+  color: var(--muted);
+}
+.watch-suggest {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+  font: 400 12px/1 var(--mono);
+  color: var(--muted);
+}
+.watch-chip {
+  padding: 6px 10px;
+  border: 1px solid var(--rule-2);
+  background: #fff;
+  font: 400 12px/1 var(--mono);
+  color: var(--blue);
+  cursor: pointer;
+}
+.watch-chip:hover:not(:disabled) {
+  border-color: var(--ink);
+  background: var(--blue-paler);
+}
+.watch-chip:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.watch-steps {
+  margin: 30px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+.watch-step {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--rule);
+  animation: ksIn 0.2s ease-out;
+}
+.watch-step:last-child {
+  border-bottom: 0;
+}
+.watch-step-mark {
+  font: 500 12px/1.4 var(--mono);
+  color: var(--muted);
+}
+.watch-step-done .watch-step-mark {
+  color: var(--green);
+}
+.watch-step-running .watch-step-mark {
+  color: var(--blue);
+  animation: ksPulse 1s ease-in-out infinite;
+}
+.watch-step-label {
+  font: 400 13.5px/1.45 var(--sans);
+  color: var(--ink);
+}
+.watch-step-detail {
+  justify-self: end;
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 12px/1.45 var(--mono);
+  color: var(--muted);
+}
+
+.watch-report {
+  margin-top: 26px;
+}
+.watch .banner-error {
+  margin-top: 26px;
+}
+.watch-verdict {
+  margin: 0;
+  padding: 18px 20px;
+  font: 400 14px/1.65 var(--sans);
+  color: var(--body);
+}
+.watch-find-head,
+.watch-find {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 190px;
+  gap: 14px;
+  padding: 11px 20px;
+  align-items: baseline;
+}
+.watch-find-head {
+  border-bottom: 1px solid var(--ink);
+  background: var(--paper);
+  font: 500 10px/1 var(--mono);
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+.watch-find {
+  border-bottom: 1px solid var(--rule);
+  background: var(--pink-wash);
+}
+.watch-find-kind {
+  font: 500 13px/1.4 var(--sans);
+  color: var(--red-dark);
+}
+.watch-find-where {
+  font: 400 12.5px/1.4 var(--mono);
+  color: var(--blue);
+  word-break: break-all;
+}
+.watch-find-evidence {
+  justify-self: end;
+  font: 400 12.5px/1.4 var(--mono);
+  letter-spacing: 0.03em;
+  color: var(--ink);
+}
+.watch-next {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+  border-top: 1px solid var(--ink);
+  background: var(--blue-paler);
+  flex-wrap: wrap;
+}
+.watch-next p {
+  margin: 0;
+  flex: 1 1 380px;
+  font: 400 13px/1.6 var(--sans);
+  color: var(--body);
+}
+.watch-next .btn {
+  flex: none;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 1180px) {
@@ -1731,3 +1912,22 @@ button {
   }
 }
 
+
+@media (max-width: 860px) {
+  .watch-find-head,
+  .watch-find {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .watch-find-evidence {
+    justify-self: start;
+  }
+  .watch-step {
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+  .watch-step-detail {
+    grid-column: 2;
+    justify-self: start;
+    max-width: 100%;
+  }
+}

@@ -1,3 +1,4 @@
+import { maskCredential } from "../mask";
 import { actionSignature } from "../signature";
 import type { Decision, Incident, RejectionReason, TierDecision } from "../types";
 
@@ -109,7 +110,7 @@ export function PlanPanel({ incident, decisions, tierFor, onDecide, disabled, se
                       <span className="action-type">
                         {item.action.action_type.replace(/_/g, " ")}
                       </span>
-                      <span className="action-target">{item.action.target}</span>
+                      <span className="action-target" title={maskCredential(item.action.target) !== item.action.target ? "Redacted AWS credential" : undefined}>{maskCredential(item.action.target)}</span>
                       {item.action.region && (
                         <span className="action-region">{item.action.region}</span>
                       )}
@@ -170,7 +171,7 @@ export function PlanPanel({ incident, decisions, tierFor, onDecide, disabled, se
                         <span className="action-type">
                           {item.action.action_type.replace(/_/g, " ")}
                         </span>
-                        <span className="action-target">{item.action.target}</span>
+                        <span className="action-target" title={maskCredential(item.action.target) !== item.action.target ? "Redacted AWS credential" : undefined}>{maskCredential(item.action.target)}</span>
                       </div>
                       <p className="rejected-reason">
                         {REJECTION_TEXT[item.reason] ?? item.reason}

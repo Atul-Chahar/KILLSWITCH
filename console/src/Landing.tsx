@@ -3,6 +3,7 @@
 // the video are the moments that video actually shows.
 
 import { DemoVideo, WATCH_URL } from "./components/DemoVideo";
+import { maskAccessKey, maskIncidentId } from "./mask";
 
 interface Guard {
   guard: string;
@@ -51,7 +52,13 @@ const BEATS: Array<[string, string]> = [
   ["2:10", "One approval, and AWS confirms the end state"],
 ];
 
-export function Landing({ onOpenConsole }: { onOpenConsole: () => void }) {
+export function Landing({
+  onOpenConsole,
+  onOpenWatch,
+}: {
+  onOpenConsole: () => void;
+  onOpenWatch: () => void;
+}) {
   return (
     <div>
       <header className="site-head">
@@ -87,17 +94,20 @@ export function Landing({ onOpenConsole }: { onOpenConsole: () => void }) {
             terminates what the attacker launched and opens a PR that removes the secret.
           </p>
           <div className="hero-actions">
-            <button className="btn btn-red" onClick={onOpenConsole}>
+            <button className="btn btn-red btn-red-bright" onClick={onOpenWatch}>
+              Scan A Public Repo
+            </button>
+            <button className="btn btn-outline" onClick={onOpenConsole}>
               Open The Live Console
             </button>
             <a className="btn btn-outline" href="#demo">
-              Watch The 3-Min Demo
+              Watch The Demo
             </a>
           </div>
           <p className="hero-note">
             No sign-up, no AWS account.
             <br />
-            The console opens in fixture mode on a worked incident.
+            The scan runs in your browser. The console opens on a worked incident.
           </p>
 
           <div className="tiles tiles-3 hero-tiles">
@@ -126,7 +136,7 @@ export function Landing({ onOpenConsole }: { onOpenConsole: () => void }) {
             <button className="peek" onClick={onOpenConsole}>
               <span className="peek-bar">
                 <span className="peek-bar-mark">KILLSWITCH</span>
-                <span className="peek-bar-id">inc-AKIAIOSFODNN7EXAMPLE</span>
+                <span className="peek-bar-id">{maskIncidentId("inc-AKIAIOSFODNN7EXAMPLE")}</span>
                 <span className="spacer" />
                 <span className="peek-bar-status">AWAITING APPROVAL</span>
               </span>
@@ -137,7 +147,7 @@ export function Landing({ onOpenConsole }: { onOpenConsole: () => void }) {
                 <span className="peek-card">
                   <span className="peek-card-head">
                     <span className="peek-card-type">Deactivate key</span>
-                    <span className="peek-card-target">AKIAIOSFODNN7EXAMPLE</span>
+                    <span className="peek-card-target" title="Redacted AWS credential">{maskAccessKey("AKIAIOSFODNN7EXAMPLE")}</span>
                   </span>
                   <span className="peek-card-evidence">Subject of the incident itself</span>
                   <span className="peek-card-btns">

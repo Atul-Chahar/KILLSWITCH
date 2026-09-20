@@ -7,14 +7,16 @@ import { EndStatePanel } from "./components/EndStatePanel";
 import { PlanPanel } from "./components/PlanPanel";
 import { Timeline } from "./components/Timeline";
 import { WorkflowRail } from "./components/WorkflowRail";
+import { RepoWatch } from "./components/RepoWatch";
 import { Landing } from "./Landing";
+import { maskIncidentId } from "./mask";
 import { actionSignature } from "./signature";
 import type { Decision, Incident } from "./types";
 
 const DEFAULT_INCIDENT_ID = "inc-AKIA" + "IOSFODNN7EXAMPLE";
 const REFRESH_MS = 5000;
 
-type View = "landing" | "console";
+type View = "landing" | "watch" | "console";
 
 function incidentIdFromLocation(): string {
   const fromQuery = new URLSearchParams(window.location.search).get("incident");
@@ -22,10 +24,13 @@ function incidentIdFromLocation(): string {
 }
 
 // A named incident is a request for that incident, so it opens the console directly and
-// a shared link keeps working. Everything else starts on the public page.
+// a shared link keeps working. A named repository opens the scanner the same way.
+// Everything else starts on the public page.
 function viewFromLocation(): View {
   if (window.location.hash === "#console") return "console";
+  if (window.location.hash === "#watch") return "watch";
   if (new URLSearchParams(window.location.search).has("incident")) return "console";
+  if (new URLSearchParams(window.location.search).has("repo")) return "watch";
   return "landing";
 }
 
@@ -49,7 +54,9 @@ export function App() {
 
   const go = useCallback((next: View) => {
     const url =
-      next === "console" ? "#console" : window.location.pathname + window.location.search;
+      next === "landing"
+        ? window.location.pathname + window.location.search
+        : `#${next}`;
     window.history.pushState(null, "", url);
     setView(next);
     window.scrollTo(0, 0);
@@ -104,7 +111,29 @@ export function App() {
     }
   }
 
-  if (view === "landing") return <Landing onOpenConsole={() => go("console")} />;
+  if (view === "landing")
+    return <Landing onOpenConsole={() => go("console")} onOpenWatch={() => go("watch")} />;
+
+  if (view === "watch") {
+    return (
+      <div className="console">
+        <header className="console-head">
+          <div className="console-head-inner">
+            <button className="btn btn-outline btn-xs" onClick={() => go("landing")}>
+              &larr; SITE
+            </button>
+            <p className="wordmark">KILLSWITCH</p>
+            <span className="console-id">repository scan</span>
+            <div className="spacer" />
+            <button className="btn btn-outline btn-xs" onClick={() => go("console")}>
+              WORKED INCIDENT &rarr;
+            </button>
+          </div>
+        </header>
+        <RepoWatch onOpenIncident={() => go("console")} />
+      </div>
+    );
+  }
 
   if (!incident) {
     return (
@@ -115,7 +144,11 @@ export function App() {
               &larr; SITE
             </button>
             <p className="wordmark">KILLSWITCH</p>
-            <span className="console-id">{incidentId}</span>
+            <span className="console-id" title="Redacted incident identifier">{maskIncidentId(incidentId)}</span>
+            <div className="spacer" />
+            <button className="btn btn-outline btn-xs" onClick={() => go("watch")}>
+              SCAN A REPO
+            </button>
           </div>
         </header>
         <div className="loading">
@@ -140,8 +173,11 @@ export function App() {
             &larr; SITE
           </button>
           <p className="wordmark">KILLSWITCH</p>
-          <span className="console-id">{incident.incident_id}</span>
+          <span className="console-id" title="Redacted incident identifier">{maskIncidentId(incident.incident_id)}</span>
           <div className="spacer" />
+          <button className="btn btn-outline btn-xs" onClick={() => go("watch")}>
+            SCAN A REPO
+          </button>
           {isFixtureMode() && <span className="mode-chip">FIXTURE MODE</span>}
           <span className={`status-chip status-${incident.status}`}>
             {incident.status.replace(/_/g, " ").toUpperCase()}
