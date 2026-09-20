@@ -52,7 +52,7 @@ def nim_api_key() -> str:
     return key
 
 
-def build_nim_agent(*, model_id: str | None = None) -> Agent:
+def build_nim_agent(*, model_id: str | None = None, timeout: float | None = None) -> Agent:
     """An agent with a system prompt and no tools, backed by NVIDIA NIM."""
     effective_model = model_id or nim_model_id()
     # LiteLLMModel routes by provider prefix. "openai/" tells LiteLLM to use the
@@ -74,6 +74,10 @@ def build_nim_agent(*, model_id: str | None = None) -> Agent:
             params={
                 "temperature": 0.1,  # low temperature for deterministic plans
                 "max_tokens": 2048,
+                # A queued model on a shared endpoint can otherwise block forever.
+                # None means "no client-side limit", which is the Lambda default:
+                # Step Functions and the Lambda timeout bound it there instead.
+                **({"timeout": timeout} if timeout is not None else {}),
             },
         ),
         system_prompt=SYSTEM_PROMPT,

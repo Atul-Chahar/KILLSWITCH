@@ -44,19 +44,25 @@ from verifier.verify import verify_plan  # noqa: E402
 EXAMPLE_KEY = "AKIA" + "IOSFODNN7EXAMPLE"
 REPOSITORY = "octo/private-demo-repo"
 OWNED_INSTANCE = "i-0a1b2c3d4e5f60001"
-TIMEOUT_SECONDS = 90
+TIMEOUT_SECONDS = 45
 
 # Tried in order. Small-and-fast first: the narrator writes one short plan, so
 # reasoning-heavy giants cost latency on camera and buy nothing.
 SHORTLIST = (
-    "meta/llama-3.1-8b-instruct",
-    "meta/llama-3.1-70b-instruct",
-    "meta/llama-3.3-70b-instruct",
-    "mistralai/mistral-small-24b-instruct",
-    "mistralai/mixtral-8x22b-instruct-v0.1",
-    "microsoft/phi-4-mini-instruct",
-    "qwen/qwen2.5-7b-instruct",
+    # Fast first: the narrator writes one short plan from a page of evidence, so a
+    # reasoning-heavy giant costs latency on camera and buys nothing. "flash",
+    # "lightning" and "nano" are the vendors' own words for their quick variants.
+    "deepseek-ai/deepseek-v4-flash-0731",
+    "z-ai/glm-5.3-flash",
+    "nvidia/nemotron-3.5-lightning-30b-a3b",
+    "nvidia/nemotron-nano-3-30b-a3b",
+    "openai/gpt-oss-20b",
+    "mistralai/mistral-nemotron",
+    "nv-mistralai/mistral-nemo-12b-instruct",
+    "mistralai/mistral-large-2-instruct",
     "nvidia/llama-3.1-nemotron-70b-instruct",
+    "moonshotai/kimi-k2.6",
+    "z-ai/glm-5.3",
 )
 
 
@@ -114,11 +120,11 @@ def sample_incident() -> BlastRadius:
     )
 
 
-def try_model(model_id: str, radius: BlastRadius) -> tuple[bool, float, str]:
+def try_model(model_id: str, radius: BlastRadius, timeout: float) -> tuple[bool, float, str]:
     """Narrate one incident. Returns (passed, seconds, what happened)."""
     started = time.monotonic()
     try:
-        agent = build_nim_agent(model_id=model_id)
+        agent = build_nim_agent(model_id=model_id, timeout=timeout)
         narration = narrate_via_nim(
             radius, repository=REPOSITORY, key_owner="demo-leaky-user", agent=agent
         )
@@ -148,6 +154,7 @@ def main() -> int:
     parser.add_argument("--all", action="store_true", help="test every model the key can reach")
     parser.add_argument("--list", action="store_true", help="list model ids and exit")
     parser.add_argument("--only", nargs="*", help="test just these ids")
+    parser.add_argument("--timeout", type=float, default=TIMEOUT_SECONDS, help="seconds per model")
     args = parser.parse_args()
 
     key = api_key()
@@ -175,10 +182,10 @@ def main() -> int:
     radius = sample_incident()
     passed: list[tuple[str, float, str]] = []
 
-    print(f"testing {len(candidates)} model(s), timeout {TIMEOUT_SECONDS}s each\n")
+    print(f"testing {len(candidates)} model(s), timeout {args.timeout:g}s each\n")
     for model_id in candidates:
         print(f"  {model_id:<52} ", end="", flush=True)
-        ok, elapsed, detail = try_model(model_id, radius)
+        ok, elapsed, detail = try_model(model_id, radius, args.timeout)
         print(f"{'PASS' if ok else 'fail'}  {elapsed:6.1f}s  {detail}")
         if ok:
             passed.append((model_id, elapsed, detail))

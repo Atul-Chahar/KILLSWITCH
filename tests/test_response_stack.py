@@ -448,3 +448,21 @@ def test_the_nim_narrator_needs_no_bedrock_model_id(tmp_path):
     )
 
     assert Template.from_stack(stack).find_resources("AWS::StepFunctions::StateMachine")
+
+
+def test_the_narrator_gets_longer_than_the_other_steps(template: Template):
+    """It waits on a third-party inference endpoint; 60s truncates a queued model."""
+    functions = template.find_resources("AWS::Lambda::Function")
+    narrate = next(
+        function
+        for logical_id, function in functions.items()
+        if logical_id.startswith("NarrateFunction")
+    )
+    others = [
+        function["Properties"]["Timeout"]
+        for logical_id, function in functions.items()
+        if not logical_id.startswith("NarrateFunction")
+    ]
+
+    assert narrate["Properties"]["Timeout"] >= 180
+    assert all(narrate["Properties"]["Timeout"] > other for other in others)

@@ -48,7 +48,7 @@ def test_a_plan_the_verifier_accepts_counts_as_a_pass(pick_nim_model, monkeypatc
     monkeypatch.setattr(pick_nim_model, "build_nim_agent", lambda **kw: object())
     monkeypatch.setattr(pick_nim_model, "narrate_via_nim", lambda *a, **kw: good)
 
-    passed, elapsed, detail = pick_nim_model.try_model("stub/model", radius)
+    passed, elapsed, detail = pick_nim_model.try_model("stub/model", radius, 30)
 
     assert passed is True
     assert elapsed >= 0
@@ -63,7 +63,7 @@ def test_a_model_that_raises_is_reported_not_crashed(pick_nim_model, monkeypatch
 
     monkeypatch.setattr(pick_nim_model, "build_nim_agent", boom)
 
-    passed, _, detail = pick_nim_model.try_model("gone/model", pick_nim_model.sample_incident())
+    passed, _, detail = pick_nim_model.try_model("gone/model", pick_nim_model.sample_incident(), 30)
 
     assert passed is False
     assert "404" in detail
@@ -80,7 +80,7 @@ def test_an_empty_plan_does_not_count_as_a_working_model(pick_nim_model, monkeyp
         lambda *a, **kw: NarratedIncident(summary="nothing to do", actions=[]),
     )
 
-    passed, _, detail = pick_nim_model.try_model("lazy/model", pick_nim_model.sample_incident())
+    passed, _, detail = pick_nim_model.try_model("lazy/model", pick_nim_model.sample_incident(), 30)
 
     assert passed is False
     assert "verifier" in detail

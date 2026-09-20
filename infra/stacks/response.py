@@ -24,6 +24,10 @@ from shared.models import IncidentStatus
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CEDAR_POLICY_PATH = REPO_ROOT / "authorize/policies/containment.cedar"
 LAMBDA_TIMEOUT = Duration.seconds(60)
+# The narrator waits on someone else's inference endpoint. Measured at ~22s against
+# NVIDIA NIM on a quiet endpoint, and a queued one is slower — 60s would truncate the
+# one step whose failure means no plan reaches the human at all.
+NARRATE_TIMEOUT = Duration.seconds(180)
 # A human has an hour to answer. On expiry the execution fails; it never proceeds alone.
 APPROVAL_TIMEOUT = Duration.hours(1)
 # How long to wait before asking CloudTrail again. workflow.tasks caps the attempts.
@@ -139,6 +143,9 @@ class ResponseStack(Stack):
 
         investigate = task_function("InvestigateFunction", "workflow.tasks.investigate_task")
         narrate = task_function("NarrateFunction", "workflow.tasks.narrate_task")
+        narrate.node.default_child.add_property_override(  # type: ignore[union-attr]
+            "Timeout", NARRATE_TIMEOUT.to_seconds()
+        )
         # The NVIDIA key goes on the narrator alone, not into the shared environment.
         # Anyone with lambda:GetFunctionConfiguration can read a function's variables,
         # and the containment function has no business carrying a credential that can
