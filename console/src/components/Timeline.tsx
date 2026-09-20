@@ -16,8 +16,11 @@ function moments(incident: Incident): Moment[] {
   const first = resources[0];
   if (first) found.push({ label: "First attacker API call", at: first.event_time, kind: "attack" });
   for (const resource of resources) {
+    // An access key is not "launched". The event name is what CloudTrail actually recorded,
+    // so the line says what happened rather than assuming every resource is an instance.
+    const verb = resource.kind === "ec2_instance" ? "Launched" : "Created";
     found.push({
-      label: `Launched ${resource.resource_id} in ${resource.region}`,
+      label: `${verb} ${resource.resource_id} in ${resource.region}`,
       at: resource.event_time,
       kind: "attack",
     });

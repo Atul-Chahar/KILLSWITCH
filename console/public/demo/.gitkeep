@@ -1,0 +1,1 @@
+The leak script writes trigger.json here. The console dev server polls it.

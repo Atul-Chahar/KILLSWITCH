@@ -44,7 +44,11 @@ class ConsoleApiStack(Stack):
         )
         client = user_pool.add_client(
             "ConsoleClient",
-            auth_flows=cognito.AuthFlow(user_srp=True),
+            # SRP is the right flow for a browser login. admin_user_password is enabled
+            # alongside it so an operator can obtain an id token from the CLI
+            # (scripts/run_console.sh) without the console shipping a login screen.
+            # Both go through the same user pool, so the authorizer is unchanged.
+            auth_flows=cognito.AuthFlow(user_srp=True, admin_user_password=True),
             prevent_user_existence_errors=True,
         )
 

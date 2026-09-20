@@ -11,6 +11,16 @@ import type { DecisionSubmission, Incident } from "./types";
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 const USE_FIXTURE = import.meta.env.VITE_USE_FIXTURE === "1" || API_BASE === "";
 
+// Every API route sits behind a Cognito authorizer — the approve button is the last
+// gate in the system and is not open to the internet. The console has no login screen,
+// so the operator supplies an id token from the pool and we send it as a bearer.
+// It expires in an hour; a 401 means fetch a new one, not that the incident is gone.
+const API_TOKEN = import.meta.env.VITE_API_TOKEN ?? "";
+
+function authHeaders(): Record<string, string> {
+  return API_TOKEN ? { Authorization: API_TOKEN } : {};
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -26,12 +36,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(`${API_BASE}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+        ...(init?.headers ?? {}),
+      },
     });
   } catch (cause) {
     throw new ApiError(`cannot reach the API: ${(cause as Error).message}`);
   }
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new ApiError(
+        API_TOKEN
+          ? "the API rejected the token — it has probably expired, fetch a new one"
+          : "the API needs a Cognito id token; start the console with VITE_API_TOKEN set",
+        response.status,
+      );
+    }
     throw new ApiError(`the API returned ${response.status}`, response.status);
   }
   return (await response.json()) as T;
@@ -45,6 +67,12 @@ export function isFixtureMode(): boolean {
 // timer would hand back the untouched fixture a few seconds after an approval and wipe
 // the contained screen off the demo.
 let fixtureState: Incident | null = null;
+
+// Demo mode builds the incident on the fly, so the approval round has to act on whatever
+// the demo last put on screen rather than on the bundled example.
+export function setFixtureIncident(incident: Incident | null): void {
+  fixtureState = incident;
+}
 
 export async function fetchIncident(incidentId: string): Promise<Incident> {
   if (USE_FIXTURE) return structuredClone(fixtureState ?? FIXTURE_INCIDENT);
@@ -60,12 +88,22 @@ export async function submitDecisions(
     // state re-read from AWS, and the before/after pair that containment/actions.py
     // writes for every action it runs. A denied action never reaches containment, so it
     // leaves no audit entry at all.
-    const incident = structuredClone(FIXTURE_INCIDENT);
+    const incident = structuredClone(fixtureState ?? FIXTURE_INCIDENT);
     const approved = decisions.filter((item) => item.state === "approved");
-    incident.status = approved.length > 0 ? "contained" : "detected";
+    // Withholding any action leaves the incident declined, not contained. Rounding a
+    // partial response up to "contained" is the exact claim this project refuses to make.
+    incident.status =
+      approved.length === 0
+        ? "declined"
+        : approved.length === decisions.length
+          ? "contained"
+          : "declined";
 
-    const observedFor = (actionType: string) =>
-      actionType === "deactivate_key" ? "Inactive" : "shutting-down";
+    const observedFor = (actionType: string) => {
+      if (actionType === "deactivate_key") return "Inactive";
+      if (actionType === "open_pr") return "pull request opened";
+      return "shutting-down";
+    };
     const startedAt = Date.parse(incident.detected_at) + 150_000;
 
     incident.end_state = {
