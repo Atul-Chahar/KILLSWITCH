@@ -16,6 +16,7 @@ from narrate.schema import NarratedIncident, NarrationError
 class NarratorMode(StrEnum):
     BEDROCK = "bedrock"
     REHEARSAL = "rehearsal"
+    NIM = "nim"
 
 
 def narrator_mode(value: str | None) -> NarratorMode:
@@ -40,6 +41,12 @@ def narration_for(
 ) -> NarratedIncident:
     if mode is NarratorMode.REHEARSAL:
         return rehearsal_narration(radius)
+
+    if mode is NarratorMode.NIM:
+        # Imported here and not at module scope: same reason as Bedrock below.
+        from narrate.nim_agent import narrate_via_nim
+
+        return narrate_via_nim(radius, repository=repository, key_owner=key_owner)
 
     # Imported here and not at module scope: the Strands SDK is a heavy import, and the
     # other five workflow tasks share this Lambda asset without ever needing it.

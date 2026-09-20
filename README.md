@@ -9,7 +9,7 @@ Built for [First Commit](https://www.wemakedevs.org/aws/first-commit) (WeMakeDev
 **Live console:** not deployed yet
 **Demo video (3 min):** not recorded yet
 
-> Read [Limitations](#limitations) before you read anything else. Nothing in this repository has ever run against AWS, and the list is 21 items long.
+> Read [Limitations](#limitations) before you read anything else. Nothing in this repository has ever run against AWS, and the list is 22 items long.
 
 ---
 
@@ -33,7 +33,7 @@ flowchart TD
     subgraph sfn["Step Functions: response workflow"]
         direction TB
         investigate["1 Investigate<br/>IAM + CloudTrail LookupEvents"]
-        narrate["2 Narrate<br/>Strands agent on Bedrock"]
+        narrate["2 Narrate<br/>Strands agent<br/>Bedrock or NVIDIA NIM"]
         verify["3 Verify<br/>deterministic, no model"]
         authorize["4 Authorize<br/>Cedar via Verified Permissions"]
         approve["5 Approve<br/>waitForTaskToken"]
@@ -54,7 +54,7 @@ Two triggers, one idempotent workflow. Whichever fires first does the work; the 
 
 **The model proposes. Plain code verifies. A human approves.**
 
-- The Strands agent on Bedrock writes prose and proposes actions. It is given **no tools**, so it has nothing to act with.
+- The Strands agent writes prose and proposes actions. It is given **no tools**, so it has nothing to act with. It runs on Amazon Bedrock or, with `NARRATOR_MODE=nim`, on NVIDIA NIM — the provider is swappable precisely because nothing downstream trusts it.
 - `verifier/` is ordinary Python. No AWS calls, no model calls — enforced by a test that parses the module and fails on a `boto3`, `strands` or HTTP import. It re-checks every proposed action against CloudTrail and drops anything the leaked key did not create, with a machine-readable reason the console renders.
 - `containment/` is the only module that destroys anything, and every function in it refuses to run without an approval token scoped to that exact action **and** that exact approval round. A decision from a superseded round authorises nothing.
 - The synthesized CloudFormation template is asserted to grant `ec2:TerminateInstances` and `iam:UpdateAccessKey` in exactly one statement, so the safety boundary is checked by CI rather than by reading the code.
@@ -94,7 +94,7 @@ Concretely:
 | EventBridge | Second trigger, on AWS's quarantine event |
 | Lambda | Detection, investigation, narration, verification, containment |
 | Step Functions | Orchestration, and the `waitForTaskToken` human approval |
-| Amazon Bedrock + Strands Agents SDK | Incident summary and proposed plan |
+| Amazon Bedrock + Strands Agents SDK | Incident summary and proposed plan. Swappable for NVIDIA NIM via `NARRATOR_MODE=nim`, for accounts without Bedrock model access |
 | Amazon Verified Permissions | Cedar policy deciding which actions need a human |
 | CloudTrail | The evidence the whole investigation stands on |
 | DynamoDB | Incident state, approvals and the append-only audit log |
@@ -227,31 +227,39 @@ chain of fakes.
     simulation, done openly, not the real AWS trigger. Relatedly, IAM's CloudTrail events
     only reach EventBridge in `us-east-1`, so the rule only fires for real if the detection
     stack is deployed there.
-15. **The narrator gets exactly one turn.** Strands, on Bedrock, hands a schema failure back
+15. **The narrator can run on NVIDIA NIM instead of Bedrock**, for accounts that cannot get
+    Bedrock model access. It is the same agent, the same schema and the same one-turn
+    limit; only the provider changes, and the verifier does not know or care which ran.
+    Two costs come with it: the NVIDIA key is a long-lived credential sitting in a Lambda
+    environment variable (scoped to the narrator function alone, but still readable by
+    anyone with `lambda:GetFunctionConfiguration`), and the Lambda asset grows from 71 MB
+    to 191 MB unzipped because `litellm` is 98 MB — under the 250 MB limit, with less
+    headroom than before. Neither path has ever been run.
+16. **The narrator gets exactly one turn.** Strands hands a schema failure back
     to the model as a tool error so it can retry. We switch that off, deliberately, so the
     component we do not trust cannot negotiate with the validator. The cost is that a model
     replying in prose fails the step. Whether a real model satisfies this schema first time
     has never been measured.
-16. **The webhook secret is a Lambda environment variable**, not Secrets Manager. It is
+17. **The webhook secret is a Lambda environment variable**, not Secrets Manager. It is
     readable by anyone with `lambda:GetFunctionConfiguration` on the account, and it does
     not rotate. Fine for a throwaway demo account, wrong for anything else. The scanner
     itself only matches `AKIA…`: an encoded, split or `ASIA` credential goes straight past.
-17. **The cost-avoided figure is an estimate at list price**, not a measurement. Instance
+18. **The cost-avoided figure is an estimate at list price**, not a measurement. Instance
     count x 720 hours x $0.0112, hardcoded, not a live price feed. It is not a bill.
-18. **The lookup window is three hours across two regions.** Anything outside it never
+19. **The lookup window is three hours across two regions.** Anything outside it never
     enters the evidence, and the verifier will then reject an action against it as "not in
     the blast radius": the right answer for the wrong reason.
-19. **The narrator's `bedrock:InvokeModel` grant is on `Resource: "*"`.** The action is the
+20. **The narrator's `bedrock:InvokeModel` grant is on `Resource: "*"`.** The action is the
     narrowest one Bedrock has and cannot read, write or destroy anything, but the narrator
     Lambda could invoke any model in the account. Scoping it means building foundation-model
     and inference-profile ARNs, and cross-region inference profiles make that easy to get
     wrong, so it was left wide on purpose. The exposure is spend, not access.
-20. **Containment is fenced by IAM, but not tightly.** `ec2:TerminateInstances` is
+21. **Containment is fenced by IAM, but not tightly.** `ec2:TerminateInstances` is
     conditioned on the two demo regions and the IAM grants are scoped to `user/*`, so the
     account root is out of reach. Within those bounds it is still `*`: KILLSWITCH could
     terminate any instance in those regions. A tag condition would be tighter, and is not
     possible — instances the attacker created carry no tag of ours to match on.
-21. **Session revocation has never run against real IAM.** Deactivating a key does nothing
+22. **Session revocation has never run against real IAM.** Deactivating a key does nothing
     to sessions it already minted, so containment now also attaches a deny-all policy
     conditioned on `aws:TokenIssueTime`, and confirmation re-reads it. Both are unit-tested
     against a fake. Neither has been checked against IAM's real behaviour.

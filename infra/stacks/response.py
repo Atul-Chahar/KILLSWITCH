@@ -77,16 +77,19 @@ class ResponseStack(Stack):
         demo_regions: list[str],
         bedrock_model_id: str = "",
         narrator_mode: str = "",
+        nvidia_api_key: str = "",
+        nim_model_id: str = "",
         **kwargs: object,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # Refuse at synth rather than deploying a workflow that is certain to fail at the
-        # Narrate step. The rehearsal narrator is not a model and needs no model id.
-        if narrator_mode != NarratorMode.REHEARSAL.value and not bedrock_model_id:
+        # Narrate step. Rehearsal and NIM narrators do not need a Bedrock model id.
+        model_free_modes = {NarratorMode.REHEARSAL.value, NarratorMode.NIM.value}
+        if narrator_mode not in model_free_modes and not bedrock_model_id:
             raise ValueError(
                 "BEDROCK_MODEL_ID must be set to deploy the response workflow, or set "
-                f"NARRATOR_MODE={NarratorMode.REHEARSAL.value} to use the fixed narrator"
+                f"NARRATOR_MODE to one of: {', '.join(sorted(model_free_modes))}"
             )
 
         policy_store = avp.CfnPolicyStore(
@@ -118,6 +121,7 @@ class ResponseStack(Stack):
             # rather than quietly asking whichever model the SDK happens to prefer.
             "BEDROCK_MODEL_ID": bedrock_model_id,
             "NARRATOR_MODE": narrator_mode,
+            "NIM_MODEL_ID": nim_model_id,
         }
 
         def task_function(name: str, handler: str) -> lambda_.Function:
@@ -135,6 +139,12 @@ class ResponseStack(Stack):
 
         investigate = task_function("InvestigateFunction", "workflow.tasks.investigate_task")
         narrate = task_function("NarrateFunction", "workflow.tasks.narrate_task")
+        # The NVIDIA key goes on the narrator alone, not into the shared environment.
+        # Anyone with lambda:GetFunctionConfiguration can read a function's variables,
+        # and the containment function has no business carrying a credential that can
+        # spend money on someone else's API.
+        if nvidia_api_key:
+            narrate.add_environment("NVIDIA_API_KEY", nvidia_api_key)
         verify = task_function("VerifyFunction", "workflow.tasks.verify_task")
         authorize = task_function("AuthorizeFunction", "workflow.tasks.authorize_task")
         request_approval = task_function(

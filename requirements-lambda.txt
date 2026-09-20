@@ -7,4 +7,4 @@
 # way to test the runtime's version before the demo. 71 MB unzipped, well under the
 # 250 MB limit.
 pydantic>=2.7
-strands-agents>=1.56,<2
+strands-agents[litellm]>=1.56,<2

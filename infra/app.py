@@ -49,6 +49,8 @@ response = ResponseStack(
     demo_regions=[PRIMARY_REGION, SECONDARY_REGION],
     bedrock_model_id=os.environ.get("BEDROCK_MODEL_ID", ""),
     narrator_mode=os.environ.get("NARRATOR_MODE", ""),
+    nvidia_api_key=os.environ.get("NVIDIA_API_KEY", ""),
+    nim_model_id=os.environ.get("NIM_MODEL_ID", ""),
     env=env,
 )
 

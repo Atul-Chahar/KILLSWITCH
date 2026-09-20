@@ -3,4 +3,7 @@ boto3>=1.34
 pydantic>=2.7
 # The narrator. Pinned to a major version because structured output is a safety
 # boundary here, and its retry behaviour is something we deliberately switch off.
-strands-agents>=1.56,<2
+# The [litellm] extra pulls in litellm, which narrate/nim_agent.py needs to reach
+# NVIDIA NIM's OpenAI-compatible endpoint. Without it that module raises
+# ModuleNotFoundError on import, and only at the Narrate step.
+strands-agents[litellm]>=1.56,<2

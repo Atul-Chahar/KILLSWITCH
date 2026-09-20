@@ -398,3 +398,53 @@ def test_the_approval_step_is_only_retried_when_it_never_ran(template: Template)
 
     for rule in approval["Retry"]:
         assert all(error.startswith("Lambda.") for error in rule["ErrorEquals"])
+
+
+def test_only_the_narrator_carries_the_nvidia_key(tmp_path):
+    """A credential that can spend money does not belong on the function that destroys things."""
+    (tmp_path / "workflow").mkdir()
+    (tmp_path / "workflow" / "tasks.py").write_text("# stand-in asset for synth\n")
+    app = cdk.App()
+    env = cdk.Environment(account="000000000000", region="ap-south-1")
+    detection = DetectionStack(app, "NimDetect", lambda_code_path=str(tmp_path), env=env)
+    stack = ResponseStack(
+        app,
+        "NimResponse",
+        lambda_code_path=str(tmp_path),
+        incidents_table=detection.incidents,
+        demo_regions=DEMO_REGIONS,
+        narrator_mode=NarratorMode.NIM.value,
+        nvidia_api_key="nvapi-" + "stub",
+        env=env,
+    )
+
+    functions = Template.from_stack(stack).find_resources("AWS::Lambda::Function")
+    carrying = {
+        logical_id
+        for logical_id, function in functions.items()
+        if "NVIDIA_API_KEY" in function["Properties"]["Environment"]["Variables"]
+    }
+
+    assert len(carrying) == 1
+    assert next(iter(carrying)).startswith("NarrateFunction")
+
+
+def test_the_nim_narrator_needs_no_bedrock_model_id(tmp_path):
+    """NARRATOR_MODE=nim is a legitimate way to deploy without Bedrock access at all."""
+    (tmp_path / "workflow").mkdir()
+    (tmp_path / "workflow" / "tasks.py").write_text("# stand-in asset for synth\n")
+    app = cdk.App()
+    env = cdk.Environment(account="000000000000", region="ap-south-1")
+    detection = DetectionStack(app, "NimNoBedrock", lambda_code_path=str(tmp_path), env=env)
+
+    stack = ResponseStack(
+        app,
+        "NimNoBedrockResponse",
+        lambda_code_path=str(tmp_path),
+        incidents_table=detection.incidents,
+        demo_regions=DEMO_REGIONS,
+        narrator_mode=NarratorMode.NIM.value,
+        env=env,
+    )
+
+    assert Template.from_stack(stack).find_resources("AWS::StepFunctions::StateMachine")
