@@ -1,6 +1,8 @@
 // The public page. Everything on it is a claim about this repository, so each one has to
-// stay true: the guard table below names files and tests that exist, and the demo slot
-// says the video is not recorded rather than pretending otherwise.
+// stay true: the guard table below names files and tests that exist, and the beats under
+// the video are the moments that video actually shows.
+
+import { DemoVideo, WATCH_URL } from "./components/DemoVideo";
 
 interface Guard {
   guard: string;
@@ -352,16 +354,13 @@ export function Landing({ onOpenConsole }: { onOpenConsole: () => void }) {
             Skip The Video, Open The Console &rarr;
           </button>
         </div>
-        <div className="demo-frame">
-          <div className="grid-green" aria-hidden="true" />
-          <div className="demo-plate">
-            <span className="demo-play" aria-hidden="true">
-              &#9654;
-            </span>
-            <p>3-minute demo video &middot; 1920&times;1080 &middot; drop the file here</p>
-            <p>not recorded yet</p>
-          </div>
-        </div>
+        <DemoVideo />
+        <p className="demo-caption">
+          Plays muted, because browsers block an unmuted autoplay.{" "}
+          <a href={WATCH_URL} target="_blank" rel="noreferrer">
+            Watch it with sound on YouTube &rarr;
+          </a>
+        </p>
         <div className="tiles tiles-4 beats">
           {BEATS.map(([time, label]) => (
             <div className="beat" key={time}>

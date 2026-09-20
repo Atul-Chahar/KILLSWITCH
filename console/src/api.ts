@@ -68,12 +68,6 @@ export function isFixtureMode(): boolean {
 // the contained screen off the demo.
 let fixtureState: Incident | null = null;
 
-// Demo mode builds the incident on the fly, so the approval round has to act on whatever
-// the demo last put on screen rather than on the bundled example.
-export function setFixtureIncident(incident: Incident | null): void {
-  fixtureState = incident;
-}
-
 export async function fetchIncident(incidentId: string): Promise<Incident> {
   if (USE_FIXTURE) return structuredClone(fixtureState ?? FIXTURE_INCIDENT);
   return request<Incident>(`/incidents/${encodeURIComponent(incidentId)}`);
@@ -88,7 +82,7 @@ export async function submitDecisions(
     // state re-read from AWS, and the before/after pair that containment/actions.py
     // writes for every action it runs. A denied action never reaches containment, so it
     // leaves no audit entry at all.
-    const incident = structuredClone(fixtureState ?? FIXTURE_INCIDENT);
+    const incident = structuredClone(FIXTURE_INCIDENT);
     const approved = decisions.filter((item) => item.state === "approved");
     // Withholding any action leaves the incident declined, not contained. Rounding a
     // partial response up to "contained" is the exact claim this project refuses to make.

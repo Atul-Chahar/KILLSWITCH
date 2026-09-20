@@ -23,6 +23,3 @@ evidence/raw/
 console/dist/
 console/node_modules/
 
-# The demo scripts write fake keys into these files. Never tracked.
-console/public/demo/*.json
-!console/public/demo/.gitkeep
