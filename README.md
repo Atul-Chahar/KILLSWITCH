@@ -2,9 +2,11 @@
 
 > Your AWS keys leaked. KILLSWITCH pulls the plug.
 
+[![Live Console](https://img.shields.io/badge/live_console-online-brightgreen?logo=render&logoColor=white)](https://killswitch-console.onrender.com/#console)
+[![Demo Video](https://img.shields.io/badge/demo_video-YouTube-red?logo=youtube&logoColor=white)](https://youtu.be/UeyZnTPyJDg)
+[![Tests](https://img.shields.io/badge/tests-374_passed-success)](tests/)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![AWS CDK v2](https://img.shields.io/badge/AWS_CDK-v2-FF9900?logo=amazon-aws&logoColor=white)](infra/)
-[![Tests](https://img.shields.io/badge/tests-374_passed-success)](tests/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](docs/CREDITS.md)
 
 ---
@@ -17,9 +19,13 @@ An engineer commits an active AWS access key to a git repository. Automated scra
 
 ## Submission Links
 
-- **Live Console:** Local fixture mode active at `http://localhost:5173/#console` (cloud deployment pending AWS demo account credentials)
-- **Demo Video (3 min):** Recorded walk-through following [docs/DEMO.md](docs/DEMO.md)
-- **Deep-Dive Technical Documentation:**
+| Deliverable | URL | Details |
+|---|---|---|
+| **Live Web Console** | [https://killswitch-console.onrender.com/#console](https://killswitch-console.onrender.com/#console) | Deployed operator console with interactive fixture mode & demo workflows |
+| **Demo Video (3 min)** | [https://youtu.be/UeyZnTPyJDg](https://youtu.be/UeyZnTPyJDg) | 3-minute video walkthrough (leak, attack, verifier rejection, containment) |
+| **Source Code** | [https://github.com/Atul-Chahar/KILLSWITCH](https://github.com/Atul-Chahar/KILLSWITCH) | Full repository with 4 CDK stacks, pure Python verifier, and 374 automated tests |
+
+### Deep-Dive Technical Documentation
 
 | Document | What it proves |
 |---|---|
@@ -223,21 +229,22 @@ npm --prefix console test -- --run
 bash scripts/check_secrets.sh
 ```
 
-### Running the Operator Console Locally
+### Running the Operator Console
 
-To inspect the user interface without an active AWS account:
+You can access the operator console in two ways:
 
-```bash
-cd console && npm run dev
-```
-
-Navigate to `http://localhost:5173/#console` in your browser. The console boots in fixture mode, populating an active incident with multi-region instances, verifier strike-outs, and functional approve/deny buttons.
+1. **Live Cloud Deployment:** Open **[https://killswitch-console.onrender.com/#console](https://killswitch-console.onrender.com/#console)** directly in your browser.
+2. **Local Fixture Mode:**
+   ```bash
+   cd console && npm run dev
+   ```
+   Navigate to `http://localhost:5173/#console` in your browser. The console boots in fixture mode, populating an active incident with multi-region instances, verifier strike-outs, and functional approve/deny buttons.
 
 ---
 
 ## Demo Walkthrough
 
-The 3-minute video demonstration follows the chronological script defined in [docs/DEMO.md](docs/DEMO.md):
+The 3-minute video demonstration is available on YouTube at **[https://youtu.be/UeyZnTPyJDg](https://youtu.be/UeyZnTPyJDg)** and follows the chronological script defined in [docs/DEMO.md](docs/DEMO.md):
 
 | Timestamp | Screen | Event & Voiceover Point |
 |---|---|---|

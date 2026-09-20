@@ -1,5 +1,8 @@
 # KILLSWITCH demo and video script
 
+- **Demo Video (YouTube):** [https://youtu.be/UeyZnTPyJDg](https://youtu.be/UeyZnTPyJDg)
+- **Live Deployed Console:** [https://killswitch-console.onrender.com/#console](https://killswitch-console.onrender.com/#console)
+
 ## Safety setup before anything runs
 
 1. Dedicated AWS account, nothing else in it. Budget alarm at a low amount, email alert on.
