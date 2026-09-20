@@ -515,3 +515,22 @@ def test_without_a_policy_store_nobody_is_granted_isauthorized(tmp_path):
     statements = _statements_by_sid(_response_without_avp(tmp_path, "NoGrant"))
 
     assert "AskThePolicyStore" not in statements
+
+
+def test_the_narrator_gets_enough_memory_to_import_its_sdk(template: Template):
+    """128 MB (the CDK default) maxed out and timed out on the first deployed run.
+
+    Memory also buys CPU on Lambda, so this is a latency fix as much as a capacity one.
+    """
+    functions = template.find_resources("AWS::Lambda::Function")
+    narrate = next(
+        function
+        for logical_id, function in functions.items()
+        if logical_id.startswith("NarrateFunction")
+    )
+
+    # Absent means Lambda's 128 MB default, which is exactly what bit us.
+    assert narrate["Properties"].get("MemorySize", 128) >= 2048
+    assert all(
+        function["Properties"].get("MemorySize", 128) >= 512 for function in functions.values()
+    )

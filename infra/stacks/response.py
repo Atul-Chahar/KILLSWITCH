@@ -28,6 +28,11 @@ LAMBDA_TIMEOUT = Duration.seconds(60)
 # NVIDIA NIM on a quiet endpoint, and a queued one is slower — 60s would truncate the
 # one step whose failure means no plan reaches the human at all.
 NARRATE_TIMEOUT = Duration.seconds(180)
+# Lambda's default 128 MB is not enough to import strands plus litellm — the first
+# deployed run maxed it out and timed out at 180s after taking 22s on a laptop.
+# Memory also buys CPU: 128 MB is a fraction of a vCPU, which is the real cause.
+DEFAULT_MEMORY_MB = 512
+NARRATE_MEMORY_MB = 2048
 # A human has an hour to answer. On expiry the execution fails; it never proceeds alone.
 APPROVAL_TIMEOUT = Duration.hours(1)
 # How long to wait before asking CloudTrail again. workflow.tasks caps the attempts.
@@ -145,6 +150,7 @@ class ResponseStack(Stack):
                 handler=handler,
                 code=code,
                 timeout=LAMBDA_TIMEOUT,
+                memory_size=DEFAULT_MEMORY_MB,
                 environment=environment,
             )
             incidents_table.grant_read_write_data(function)
@@ -154,6 +160,9 @@ class ResponseStack(Stack):
         narrate = task_function("NarrateFunction", "workflow.tasks.narrate_task")
         narrate.node.default_child.add_property_override(  # type: ignore[union-attr]
             "Timeout", NARRATE_TIMEOUT.to_seconds()
+        )
+        narrate.node.default_child.add_property_override(  # type: ignore[union-attr]
+            "MemorySize", NARRATE_MEMORY_MB
         )
         # The NVIDIA key goes on the narrator alone, not into the shared environment.
         # Anyone with lambda:GetFunctionConfiguration can read a function's variables,
@@ -340,6 +349,7 @@ class ResponseStack(Stack):
             handler="workflow.start.lambda_handler",
             code=code,
             timeout=LAMBDA_TIMEOUT,
+            memory_size=DEFAULT_MEMORY_MB,
             environment={"STATE_MACHINE_ARN": self.state_machine.state_machine_arn},
         )
         self.state_machine.grant_start_execution(start_workflow)
