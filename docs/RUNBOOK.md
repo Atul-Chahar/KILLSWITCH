@@ -3,6 +3,11 @@
 Every command a human runs, in order. Claude Code writes the code; it never runs
 destructive AWS commands. Nothing here touches an account other than `DEMO_ACCOUNT_ID`.
 
+**New to AWS?** `docs/FIRST-RUN.md` covers everything before this file: creating the
+dedicated account, the budget alarm, an IAM user, `aws configure`, enabling a Bedrock
+model, and the private demo repository. Come back here once
+`aws sts get-caller-identity` shows the right account.
+
 ## Once, before anything
 
 ```bash
