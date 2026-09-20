@@ -11,6 +11,7 @@ What is in here, and — just as importantly — what is not.
 | `console-verifier-rejection-fixture-mode.jpg` | The same screen, scrolled to the plan | The verifier striking out `i-0999999999ffffff9` with "this leaked key never created it", next to the two actions it approved |
 | `narration-from-the-model.json` | One real Bedrock call and the verifier's verdict on it, written by `scripts/capture_narration.py` | **Not captured yet.** Until it is, nothing in this repository proves a model was ever called |
 | `console-and-landing-mobile-390px.png` | Both views rendered at a 390px viewport | The phone layout: the rail unsticks and stacks, the nav collapses, and neither view scrolls sideways |
+| `banner.png` | Project hero banner image | The public landing page showcasing the problem statement and the live console preview |
 
 ## What is missing, and why
 

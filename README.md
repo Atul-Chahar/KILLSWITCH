@@ -2,6 +2,10 @@
 
 > Your AWS keys leaked. KILLSWITCH pulls the plug.
 
+<p align="center">
+  <img src="evidence/banner.png" alt="KILLSWITCH — Leaked Credential Responder" width="100%">
+</p>
+
 [![Live Console](https://img.shields.io/badge/live_console-online-brightgreen?logo=render&logoColor=white)](https://killswitch-console.onrender.com/#console)
 [![Demo Video](https://img.shields.io/badge/demo_video-YouTube-red?logo=youtube&logoColor=white)](https://youtu.be/UeyZnTPyJDg)
 [![Tests](https://img.shields.io/badge/tests-374_passed-success)](tests/)
