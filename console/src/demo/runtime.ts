@@ -164,6 +164,27 @@ export function startDemoWatch(): () => void {
     const leak = await readTrigger<LeakTrigger>(LEAK_URL);
     if (stopped) return;
 
+    if (!leak && currentLeak) {
+      seenLeak = null;
+      seenAttack = null;
+      currentLeak = null;
+      currentAttack = null;
+      clearTimers();
+      setFixtureIncident(null);
+      emit({
+        phase: "standby",
+        leak: null,
+        incident: null,
+        activity: [],
+        log: [],
+        streaming: false,
+        note: null,
+        progress: 0,
+        error: null,
+      });
+      return;
+    }
+
     if (leak?.id && leak.access_key_id && leak.repository && leak.id !== seenLeak) {
       seenLeak = leak.id;
       seenAttack = null;
